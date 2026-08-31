@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-dark: #0A0A0A;
+    --color-off-white: #F1F0EA;
+    --color-white: #FFFFFF;
+    --color-primary: #234524;
+    --color-primary-accent: #143114;
+    --color-secondary: #4C4841;
+    --color-gold: #C8A45C;
+    --color-gold-light: #D4BC7E;
+    --color-olive: #556B2F;
+    --color-dark-grey: #1A1A1A;
+    --color-card-grey: #232323;
+    --color-border-dark: #2A2A2A;
+    --color-text-muted: #8A8A8A;
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--color-dark);
+    color: var(--color-white);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    word-break: keep-all;
+  }
+
+  ::selection {
+    background-color: var(--color-gold);
+    color: var(--color-dark);
+  }
+}
+
+@layer components {
+  .label-mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .display-heading {
+    font-family: 'Inter', sans-serif;
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+  }
+
+  .section-dark {
+    background-color: var(--color-dark);
+    color: var(--color-white);
+  }
+
+  .section-light {
+    background-color: var(--color-off-white);
+    color: var(--color-dark);
+  }
+
+  .section-green {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
