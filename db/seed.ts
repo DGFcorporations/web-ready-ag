@@ -1,8 +1,6 @@
 import { getDb } from "../api/queries/connection";
 import {
   services,
-  pricingPlans,
-  planFeatures,
   testimonials,
   geoPages,
   blogPosts,
@@ -114,87 +112,6 @@ async function seed() {
       },
     ]);
     console.log("Seeded 6 services");
-  }
-
-  // ─── Pricing Plans ──────────────────────────────────────
-  const existingPlans = await db.query.pricingPlans.findMany();
-  if (existingPlans.length === 0) {
-    await db.insert(pricingPlans).values([
-      {
-        slug: "starter",
-        name: "Starter",
-        price: "397.00",
-        yearlyPrice: "3970.00",
-        description: "Best for solopreneurs and small teams getting started with AI automation",
-        isPopular: false,
-        sortOrder: 1,
-      },
-      {
-        slug: "professional",
-        name: "Professional",
-        price: "897.00",
-        yearlyPrice: "8970.00",
-        description: "For growing businesses ready to automate their entire customer communication pipeline",
-        isPopular: true,
-        sortOrder: 2,
-      },
-      {
-        slug: "enterprise",
-        name: "Enterprise",
-        price: "1897.00",
-        yearlyPrice: "18970.00",
-        description: "Complete automation infrastructure for multi-location businesses and high-volume operations",
-        isPopular: false,
-        sortOrder: 3,
-      },
-    ]);
-    console.log("Seeded 3 pricing plans");
-
-    // ─── Plan Features ────────────────────────────────────
-    const plans = await db.query.pricingPlans.findMany();
-    const starterPlan = plans.find((p) => p.slug === "starter");
-    const proPlan = plans.find((p) => p.slug === "professional");
-    const entPlan = plans.find((p) => p.slug === "enterprise");
-
-    if (starterPlan) {
-      await db.insert(planFeatures).values([
-        { planId: starterPlan.id, feature: "AI Voice Agent (1 number)", included: true, sortOrder: 1 },
-        { planId: starterPlan.id, feature: "100 minutes/month", included: true, sortOrder: 2 },
-        { planId: starterPlan.id, feature: "Basic CRM integration", included: true, sortOrder: 3 },
-        { planId: starterPlan.id, feature: "Email notifications", included: true, sortOrder: 4 },
-        { planId: starterPlan.id, feature: "Google Calendar sync", included: true, sortOrder: 5 },
-        { planId: starterPlan.id, feature: "Standard support", included: true, sortOrder: 6 },
-        { planId: starterPlan.id, feature: "Cold outreach system", included: false, sortOrder: 7 },
-        { planId: starterPlan.id, feature: "Review generation", included: false, sortOrder: 8 },
-      ]);
-    }
-
-    if (proPlan) {
-      await db.insert(planFeatures).values([
-        { planId: proPlan.id, feature: "AI Voice Agent (3 numbers)", included: true, sortOrder: 1 },
-        { planId: proPlan.id, feature: "500 minutes/month", included: true, sortOrder: 2 },
-        { planId: proPlan.id, feature: "Advanced CRM + Sheets", included: true, sortOrder: 3 },
-        { planId: proPlan.id, feature: "Cold outreach system", included: true, sortOrder: 4 },
-        { planId: proPlan.id, feature: "Review generation", included: true, sortOrder: 5 },
-        { planId: proPlan.id, feature: "Local SEO basics", included: true, sortOrder: 6 },
-        { planId: proPlan.id, feature: "Priority support", included: true, sortOrder: 7 },
-        { planId: proPlan.id, feature: "Custom workflow builder", included: false, sortOrder: 8 },
-      ]);
-    }
-
-    if (entPlan) {
-      await db.insert(planFeatures).values([
-        { planId: entPlan.id, feature: "Unlimited AI Voice Agents", included: true, sortOrder: 1 },
-        { planId: entPlan.id, feature: "Unlimited minutes", included: true, sortOrder: 2 },
-        { planId: entPlan.id, feature: "Full CRM suite", included: true, sortOrder: 3 },
-        { planId: entPlan.id, feature: "Multi-location SEO", included: true, sortOrder: 4 },
-        { planId: entPlan.id, feature: "Custom workflow builder", included: true, sortOrder: 5 },
-        { planId: entPlan.id, feature: "Dedicated account manager", included: true, sortOrder: 6 },
-        { planId: entPlan.id, feature: "24/7 priority support", included: true, sortOrder: 7 },
-        { planId: entPlan.id, feature: "API access", included: true, sortOrder: 8 },
-      ]);
-    }
-    console.log("Seeded plan features");
   }
 
   // ─── Testimonials ───────────────────────────────────────

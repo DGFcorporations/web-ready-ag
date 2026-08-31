@@ -5,7 +5,6 @@ import {
   varchar,
   text,
   timestamp,
-  decimal,
   int,
   json,
   boolean,
@@ -51,66 +50,6 @@ export const services = mysqlTable("services", {
 });
 
 export type Service = typeof services.$inferSelect;
-
-// ─── Pricing Plans ───────────────────────────────────────────────
-export const pricingPlans = mysqlTable("pricing_plans", {
-  id: serial("id").primaryKey(),
-  slug: varchar("slug", { length: 100 }).notNull().unique(),
-  name: varchar("name", { length: 255 }).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  yearlyPrice: decimal("yearly_price", { precision: 10, scale: 2 }),
-  description: varchar("description", { length: 500 }),
-  isPopular: boolean("is_popular").notNull().default(false),
-  sortOrder: int("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type PricingPlan = typeof pricingPlans.$inferSelect;
-
-// ─── Plan Features ───────────────────────────────────────────────
-export const planFeatures = mysqlTable("plan_features", {
-  id: serial("id").primaryKey(),
-  planId: bigint("plan_id", { mode: "number", unsigned: true }).notNull(),
-  feature: varchar("feature", { length: 255 }).notNull(),
-  included: boolean("included").notNull().default(true),
-  sortOrder: int("sort_order").notNull().default(0),
-});
-
-export type PlanFeature = typeof planFeatures.$inferSelect;
-
-// ─── Orders ──────────────────────────────────────────────────────
-export const orders = mysqlTable("orders", {
-  id: serial("id").primaryKey(),
-  userId: bigint("user_id", { mode: "number", unsigned: true }),
-  planId: bigint("plan_id", { mode: "number", unsigned: true }).notNull(),
-  status: mysqlEnum("status", ["pending", "paid", "deploying", "active", "cancelled", "refunded"])
-    .notNull()
-    .default("pending"),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  billingCycle: mysqlEnum("billing_cycle", ["monthly", "yearly"]).notNull().default("monthly"),
-  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
-  deployedAt: timestamp("deployed_at"),
-  expiresAt: timestamp("expires_at"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),
-});
-
-export type Order = typeof orders.$inferSelect;
-
-// ─── Order Services ──────────────────────────────────────────────
-export const orderServices = mysqlTable("order_services", {
-  id: serial("id").primaryKey(),
-  orderId: bigint("order_id", { mode: "number", unsigned: true }).notNull(),
-  serviceId: bigint("service_id", { mode: "number", unsigned: true }).notNull(),
-  deploymentStatus: mysqlEnum("deployment_status", ["pending", "in_progress", "completed", "failed"])
-    .notNull()
-    .default("pending"),
-  deploymentLog: text("deployment_log"),
-  completedAt: timestamp("completed_at"),
-});
-
-export type OrderService = typeof orderServices.$inferSelect;
 
 // ─── Leads ───────────────────────────────────────────────────────
 export const leads = mysqlTable("leads", {

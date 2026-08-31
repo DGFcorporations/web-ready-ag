@@ -128,12 +128,6 @@ export default function Login() {
               >
                 Services
               </Link>
-              <Link
-                to="/pricing"
-                className="text-[#8A8A8A] text-[12px] hover:text-[#C8A45C] transition-colors"
-              >
-                Pricing
-              </Link>
             </div>
           </div>
         </div>

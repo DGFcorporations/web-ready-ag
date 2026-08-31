@@ -9,16 +9,16 @@ gsap.registerPlugin(ScrollTrigger);
 const services = [
   {
     id: 1,
-    title: "Voice AI",
+    title: "AIO Engine",
     description:
-      "Intelligent phone agents that handle inbound calls, qualify leads, and book appointments — 24/7, without a receptionist.",
+      "Intelligent Answer Engine Optimization ensuring AI language models read and recommend your business 24/7.",
     image: "/carousel-voice.jpg",
   },
   {
     id: 2,
-    title: "Cold Outreach",
+    title: "GEO Optimizer",
     description:
-      "Multi-agent infrastructure that researches prospects, writes personalized emails, and manages follow-up cadences automatically.",
+      "Geographic optimization systems that ensure your platform dominates local search queries natively.",
     image: "/carousel-outreach.jpg",
   },
   {

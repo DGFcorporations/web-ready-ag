@@ -33,7 +33,6 @@ export default function Navigation() {
 
   const navLinks = [
     { label: "Services", action: () => scrollToSection("services"), href: "/services" },
-    { label: "Pricing", action: () => scrollToSection("pricing"), href: "/pricing" },
     { label: "Locations", href: "/locations" },
     { label: "Blog", href: "/blog" },
   ];

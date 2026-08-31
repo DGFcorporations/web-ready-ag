@@ -6,7 +6,6 @@ import ServicesShowcase from "@/sections/ServicesShowcase";
 import Process from "@/sections/Process";
 import Capabilities from "@/sections/Capabilities";
 import Results from "@/sections/Results";
-import PricingSection from "@/sections/PricingSection";
 import Values from "@/sections/Values";
 import CTASection from "@/sections/CTASection";
 
@@ -20,7 +19,6 @@ export default function Home() {
       <Process />
       <Capabilities />
       <Results />
-      <PricingSection />
       <Values />
       <CTASection />
       <Footer />
