@@ -39,9 +39,4 @@ build/
 # Test coverage
 coverage/
 .nyc_output/
-
-# Agent throwaway output - never committed, safe to wipe
-_agent-scratch/
-
-# Staged for deletion by the user
-_to_delete/
+dist/
