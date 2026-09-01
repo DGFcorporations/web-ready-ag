@@ -106,7 +106,7 @@ export default function Hero() {
           ref={bodyRef}
           className="text-[#8A8A8A] text-[18px] leading-relaxed mt-6 max-w-[520px] opacity-0"
         >
-          DGF Corporations builds AI voice agents and automation systems for
+          WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility for
           Florida service businesses. No fluff. No bloated proposals. We build
           things that actually work.
         </p>

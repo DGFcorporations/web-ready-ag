@@ -52,7 +52,7 @@ export default function Navigation() {
             to="/"
             className="text-white font-bold text-[16px] tracking-[0.05em]"
           >
-            DGF CORPORATIONS
+            WEB-READY/AG
           </Link>
 
           <div className="hidden md:flex items-center gap-8">

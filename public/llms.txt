@@ -1,0 +1,25 @@
+# WEB-READY/AG
+
+WEB-READY/AG is a veteran-owned AI automation agency based in Florida. We optimize websites for the AI era and build Agent-Grade structured data and Answer Engine visibility for local service businesses.
+
+## Services
+- Voice AI: Intelligent phone agents that handle inbound calls, qualify leads, and book appointments 24/7.
+- Cold Outreach: Multi-agent infrastructure that researches prospects and writes personalized emails automatically.
+- CRM Automation: Connected workflows that sync calls, emails, and calendar eliminating manual admin.
+- Review Generation: Automated systems that capture feedback and distribute positive reviews across platforms.
+- Local SEO: Data-driven optimization that puts your business at the top of local search results.
+- AI Assistants: Custom-trained chatbots that handle inquiries, scheduling, and support across all channels.
+- AIO Optimization: Agent-Grade structured data and Answer Engine visibility.
+- AEO Optimization: Answer Engine Optimization for ChatGPT, Perplexity, and more.
+
+## Target Audience
+Florida service businesses, including HVAC, plumbing, electrical, dental, legal, and more.
+
+## Pricing
+- Starter: $397.00/mo
+- Professional: $797.00/mo
+- Enterprise: $1,497.00/mo
+
+## Contact
+- Phone: (904) 555-0147
+- Website: https://web-ready.ag

@@ -1,25 +1,18 @@
 import { useParams, Link } from "react-router";
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { MapPin, Phone, ArrowLeft, ArrowRight } from "lucide-react";
-import { useEffect } from "react";
 
 export default function LocationDetail() {
   const { slug } = useParams<{ slug: string }>();
   const { data: page } = trpc.geo.getBySlug.useQuery({ slug: slug ?? "" });
 
-  useEffect(() => {
-    if (page) {
-      document.title = page.metaTitle || `AI Automation in ${page.city} | DGF Corporations`;
-      const metaDesc = document.querySelector('meta[name="description"]');
-      if (metaDesc) metaDesc.setAttribute("content", page.metaDescription || "");
-    }
-  }, [page]);
-
   if (!page) {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
+        <SEO title="Location Not Found | WEB-READY/AG" description="The requested location page was not found." />
         <Navigation />
         <div className="pt-32 pb-24 px-6 text-center">
           <h1 className="text-white text-2xl font-bold">Location not found</h1>
@@ -37,6 +30,11 @@ export default function LocationDetail() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO 
+        title={page.metaTitle || `AI Automation Services in ${page.city}, ${page.state}`}
+        description={page.metaDescription || `Veteran-owned AI automation agency serving ${page.city}, ${page.state}.`}
+        canonical={`https://web-ready.ag/locations/${page.slug}`}
+      />
       <Navigation />
 
       {/* SEO Meta (hidden) */}
@@ -135,3 +133,5 @@ export default function LocationDetail() {
     </div>
   );
 }
+
+

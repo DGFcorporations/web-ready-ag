@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ export default function Checkout() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO title="Checkout | WEB-READY/AG" description="Checkout page for WEB-READY/AG." />
       <Navigation />
       <section className="pt-32 pb-24 px-6 lg:px-10">
         <div className="max-w-[1100px] mx-auto">
@@ -258,3 +260,5 @@ export default function Checkout() {
     </div>
   );
 }
+
+

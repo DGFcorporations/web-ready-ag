@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router";
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { Calendar, ArrowLeft, User } from "lucide-react";
@@ -40,7 +41,8 @@ export default function BlogPost() {
   if (!post) {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
-        <Navigation />
+        <SEO title="BlogPost | WEB-READY/AG" description="BlogPost page for WEB-READY/AG." />
+      <Navigation />
         <div className="pt-32 pb-24 px-6 text-center">
           <h1 className="text-white text-2xl font-bold">Post not found</h1>
           <Link to="/blog" className="text-[#C8A45C] mt-4 inline-block">
@@ -54,6 +56,7 @@ export default function BlogPost() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO title="BlogPost | WEB-READY/AG" description="BlogPost page for WEB-READY/AG." />
       <Navigation />
       <article className="pt-32 pb-24 px-6 lg:px-10">
         <div className="max-w-[800px] mx-auto">
@@ -117,3 +120,5 @@ export default function BlogPost() {
     </div>
   );
 }
+
+

@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { Link } from "react-router";
@@ -9,6 +10,7 @@ export default function Locations() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO title="Locations | WEB-READY/AG" description="Locations page for WEB-READY/AG." />
       <Navigation />
       <section className="pt-32 pb-16 px-6 lg:px-10">
         <div className="max-w-[1280px] mx-auto">
@@ -58,3 +60,5 @@ export default function Locations() {
     </div>
   );
 }
+
+

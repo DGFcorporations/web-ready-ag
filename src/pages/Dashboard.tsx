@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
@@ -23,7 +24,8 @@ export default function Dashboard() {
   if (!user) {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
-        <Navigation />
+        <SEO title="Dashboard | WEB-READY/AG" description="Dashboard page for WEB-READY/AG." />
+      <Navigation />
         <div className="pt-32 pb-24 px-6 text-center">
           <h1 className="text-white text-2xl font-bold mb-4">Please Sign In</h1>
           <p className="text-[#8A8A8A] mb-6">Sign in to view your dashboard and manage your services.</p>
@@ -47,6 +49,7 @@ export default function Dashboard() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO title="Dashboard | WEB-READY/AG" description="Dashboard page for WEB-READY/AG." />
       <Navigation />
       <section className="pt-32 pb-24 px-6 lg:px-10">
         <div className="max-w-[1280px] mx-auto">
@@ -162,3 +165,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+

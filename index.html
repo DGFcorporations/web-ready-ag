@@ -3,10 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DGF Corporations</title>
+    <title>WEB-READY/AG | AI Automation for Florida Service Businesses</title>
+    
+    <!-- Meta Descriptions -->
+    <meta name="description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility for Florida service businesses." />
+    
+    <!-- Canonical -->
+    <link rel="canonical" href="https://web-ready.ag" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://web-ready.ag/" />
+    <meta property="og:title" content="WEB-READY/AG | AI Automation" />
+    <meta property="og:description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility." />
+    <meta property="og:image" content="https://web-ready.ag/hero-bg.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://web-ready.ag/" />
+    <meta property="twitter:title" content="WEB-READY/AG | AI Automation" />
+    <meta property="twitter:description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility." />
+    <meta property="twitter:image" content="https://web-ready.ag/hero-bg.jpg" />
+
+    <!-- JSON-LD Structured Data (Organization & FAQ) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "WEB-READY/AG",
+          "url": "https://web-ready.ag",
+          "logo": "https://web-ready.ag/hero-bg.jpg",
+          "description": "Veteran-owned AI automation agency serving Florida service businesses.",
+          "address": {
+            "@type": "PostalAddress",
+            "addressRegion": "FL",
+            "addressCountry": "US"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+1-904-555-0147",
+            "contactType": "customer service"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is AIO (Artificial Intelligence Optimization)?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "AIO ensures large language models (LLMs) and search engines can parse, understand, and recommend your services to users asking AI for local recommendations."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What is AEO (Answer Engine Optimization)?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "AEO ensures your brand is the definitive answer when customers ask AI tools like ChatGPT or Perplexity questions about your industry. We build targeted FAQ schema and structured content blocks designed specifically for AI extraction."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+

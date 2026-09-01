@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import Navigation from "@/components/Navigation";
+import SEO from "@/components/SEO";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import {
@@ -63,6 +64,7 @@ export default function Admin() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO title="Admin | WEB-READY/AG" description="Admin page for WEB-READY/AG." />
       <Navigation />
       <section className="pt-28 pb-24 px-6 lg:px-10">
         <div className="max-w-[1280px] mx-auto">
@@ -205,3 +207,5 @@ export default function Admin() {
     </div>
   );
 }
+
+

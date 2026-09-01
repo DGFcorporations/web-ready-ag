@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { Link } from "react-router";
 import { Phone, Mail, Database, Star, MapPin, Bot, ArrowRight } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const iconMap: Record<string, React.ReactNode> = {
   phone: <Phone size={24} />,
@@ -28,6 +29,11 @@ export default function Services() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
+      <SEO 
+        title="AI Automation Services | WEB-READY/AG"
+        description="Explore our AI automation services including Voice AI, CRM Automation, AIO, and AEO. We help Florida service businesses scale."
+        canonical="https://web-ready.ag/services"
+      />
       <Navigation />
       <section className="pt-32 pb-16 px-6 lg:px-10">
         <div className="max-w-[1280px] mx-auto">

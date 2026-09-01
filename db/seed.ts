@@ -112,8 +112,40 @@ async function seed() {
         category: "assistants",
         sortOrder: 6,
       },
+      {
+        slug: "aio-optimization",
+        name: "AIO Optimization",
+        shortDesc: "Agent-Grade structured data and Answer Engine visibility",
+        fullDesc: "We build your website to be understood by AI. Artificial Intelligence Optimization (AIO) ensures large language models (LLMs) and search engines can parse, understand, and recommend your services to users asking AI for local recommendations.",
+        features: JSON.stringify([
+          "Agent-Grade structured data",
+          "LLMs.txt configuration",
+          "Semantic content optimization",
+          "Knowledge graph integration",
+          "AI crawler accessibility",
+        ]),
+        icon: "bot",
+        category: "seo",
+        sortOrder: 7,
+      },
+      {
+        slug: "aeo-optimization",
+        name: "AEO Optimization",
+        shortDesc: "Answer Engine Optimization for ChatGPT, Perplexity, and more",
+        fullDesc: "Answer Engine Optimization (AEO) ensures your brand is the definitive answer when customers ask AI tools questions about your industry. We build targeted FAQ schema and structured content blocks designed specifically for AI extraction.",
+        features: JSON.stringify([
+          "Targeted FAQ schema markup",
+          "Answer Engine structured blocks",
+          "Perplexity & ChatGPT visibility",
+          "Direct answer targeting",
+          "Conversational query optimization",
+        ]),
+        icon: "star",
+        category: "seo",
+        sortOrder: 8,
+      },
     ]);
-    console.log("Seeded 6 services");
+    console.log("Seeded 8 services");
   }
 
   // ─── Pricing Plans ──────────────────────────────────────
