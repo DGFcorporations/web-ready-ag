@@ -2,12 +2,10 @@ import { Routes, Route } from "react-router";
 import { Toaster } from "@/components/ui/sonner";
 import Home from "@/pages/Home";
 import Services from "@/pages/Services";
-import Pricing from "@/pages/Pricing";
 import Locations from "@/pages/Locations";
 import LocationDetail from "@/pages/LocationDetail";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
-import Checkout from "@/pages/Checkout";
 import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import Login from "@/pages/Login";
@@ -19,12 +17,10 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/services" element={<Services />} />
-        <Route path="/pricing" element={<Pricing />} />
         <Route path="/locations" element={<Locations />} />
         <Route path="/locations/:slug" element={<LocationDetail />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
-        <Route path="/checkout" element={<Checkout />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/login" element={<Login />} />

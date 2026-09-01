@@ -5,9 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import {
   Users,
-  ShoppingCart,
   Mail,
-  DollarSign,
   Loader2,
   TrendingUp,
   Activity,
@@ -25,12 +23,8 @@ export default function Admin() {
   }, [authLoading, isAdmin, navigate]);
 
   const { data: stats } = trpc.dashboard.stats.useQuery(undefined, { enabled: isAdmin });
-  const { data: ordersData } = trpc.order.list.useQuery(
-    { limit: 10, page: 1 },
-    { enabled: isAdmin }
-  );
-  const { data: leadsData } = trpc.lead.list.useQuery(
-    { limit: 10, page: 1 },
+  const { data: leadsData } = trpc.dashboard.recentLeads.useQuery(
+    { limit: 10 },
     { enabled: isAdmin }
   );
 
@@ -52,15 +46,6 @@ export default function Admin() {
     lost: "text-red-400",
   };
 
-  const orderStatusColors: Record<string, string> = {
-    pending: "text-yellow-500",
-    paid: "text-blue-400",
-    deploying: "text-orange-400",
-    active: "text-green-500",
-    cancelled: "text-red-400",
-    refunded: "text-gray-400",
-  };
-
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
       <Navigation />
@@ -70,7 +55,7 @@ export default function Admin() {
             <div>
               <h1 className="text-white font-bold text-[28px]">Admin Dashboard</h1>
               <p className="text-[#8A8A8A] text-[13px] mt-1">
-                Manage orders, leads, and deployments.
+                Manage leads and deployments.
               </p>
             </div>
             <Link
@@ -82,12 +67,10 @@ export default function Admin() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-10">
             {[
               { label: "Total Users", value: stats?.users ?? 0, icon: Users, color: "text-blue-400" },
-              { label: "Total Orders", value: stats?.orders ?? 0, icon: ShoppingCart, color: "text-[#C8A45C]" },
               { label: "Total Leads", value: stats?.leads ?? 0, icon: Mail, color: "text-green-400" },
-              { label: "Revenue", value: `$${(stats?.revenue ?? 0).toLocaleString()}`, icon: DollarSign, color: "text-purple-400" },
             ].map((stat) => (
               <div key={stat.label} className="bg-[#1A1A1A] border border-[#2A2A2A] p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -102,45 +85,7 @@ export default function Admin() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Orders */}
-            <div className="bg-[#1A1A1A] border border-[#2A2A2A]">
-              <div className="p-5 border-b border-[#2A2A2A] flex items-center justify-between">
-                <h3 className="text-white font-semibold flex items-center gap-2">
-                  <ShoppingCart size={16} className="text-[#C8A45C]" />
-                  Recent Orders
-                </h3>
-                <span className="text-[#8A8A8A] text-[11px] font-mono">
-                  {ordersData?.total ?? 0} total
-                </span>
-              </div>
-              <div className="divide-y divide-[#2A2A2A]">
-                {ordersData?.orders.map((order) => (
-                  <div key={order.id} className="p-4 flex items-center justify-between">
-                    <div>
-                      <div className="text-white text-[13px] font-medium">
-                        Order #{order.id} — Plan #{order.planId}
-                      </div>
-                      <div className="text-[#8A8A8A] text-[11px] font-mono mt-0.5">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "N/A"} · {order.billingCycle}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-white text-[13px] font-semibold">
-                        ${Number(order.amount).toLocaleString()}
-                      </div>
-                      <span className={`text-[11px] font-mono capitalize ${orderStatusColors[order.status] || "text-[#8A8A8A]"}`}>
-                        {order.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {(!ordersData?.orders || ordersData.orders.length === 0) && (
-                  <div className="p-6 text-center text-[#8A8A8A] text-[13px]">No orders yet</div>
-                )}
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 gap-6">
             {/* Recent Leads */}
             <div className="bg-[#1A1A1A] border border-[#2A2A2A]">
               <div className="p-5 border-b border-[#2A2A2A] flex items-center justify-between">
@@ -149,11 +94,11 @@ export default function Admin() {
                   Recent Leads
                 </h3>
                 <span className="text-[#8A8A8A] text-[11px] font-mono">
-                  {leadsData?.total ?? 0} total
+                  {leadsData?.length ?? 0} total
                 </span>
               </div>
               <div className="divide-y divide-[#2A2A2A]">
-                {leadsData?.leads.map((lead) => (
+                {leadsData?.map((lead) => (
                   <div key={lead.id} className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-white text-[13px] font-medium">{lead.name}</div>
@@ -171,7 +116,7 @@ export default function Admin() {
                     )}
                   </div>
                 ))}
-                {(!leadsData?.leads || leadsData.leads.length === 0) && (
+                {(!leadsData || leadsData.length === 0) && (
                   <div className="p-6 text-center text-[#8A8A8A] text-[13px]">No leads yet</div>
                 )}
               </div>
@@ -186,7 +131,6 @@ export default function Admin() {
             </div>
             <div className="flex flex-wrap gap-4">
               {[
-                { label: "Active Deployments", value: stats?.deployments ?? 0, color: "text-orange-400" },
                 { label: "Database", value: "Connected", color: "text-green-400" },
                 { label: "API Status", value: "Operational", color: "text-green-400" },
                 { label: "Last Sync", value: new Date().toLocaleTimeString(), color: "text-[#8A8A8A]" },

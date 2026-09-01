@@ -32,7 +32,7 @@ export default function Footer() {
           <div>
             <h4 className="text-white text-[14px] font-semibold mb-4">Services</h4>
             <ul className="space-y-2.5">
-              {["Voice AI", "Cold Outreach", "CRM Automation", "Review Generation", "Local SEO"].map(
+              {["AIO Engine", "GEO Optimizer", "CRM Automation", "Review Generation", "Local SEO"].map(
                 (service) => (
                   <li key={service}>
                     <Link
@@ -53,7 +53,6 @@ export default function Footer() {
               {[
                 { label: "About", href: "/#values" },
                 { label: "Process", href: "/#process" },
-                { label: "Pricing", href: "/pricing" },
                 { label: "Blog", href: "/blog" },
                 { label: "Contact", href: "/#cta" },
               ].map((item) => (
