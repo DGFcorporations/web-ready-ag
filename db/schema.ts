@@ -129,3 +129,15 @@ export const testimonials = mysqlTable("testimonials", {
 });
 
 export type Testimonial = typeof testimonials.$inferSelect;
+
+// ─── AI Crawlers Log ─────────────────────────────────────────────
+export const aiCrawlersLog = mysqlTable("ai_crawlers_log", {
+  id: serial("id").primaryKey(),
+  botName: varchar("bot_name", { length: 100 }).notNull(),
+  userAgent: text("user_agent").notNull(),
+  pathAccessed: varchar("path_accessed", { length: 500 }).notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  visitedAt: timestamp("visited_at").defaultNow().notNull(),
+});
+
+export type AiCrawlerLog = typeof aiCrawlersLog.$inferSelect;
