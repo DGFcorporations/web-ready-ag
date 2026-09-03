@@ -57,3 +57,15 @@ anything there you would be sad to lose — and never put throwaway anywhere els
 3. State plainly whether your work is committed. If it is not, say so.
    "Done" without a commit is a false report, and it is how work here
    has been lost before.
+
+## SHARED WORK — read before you start, write before you finish
+Other agents work in these repos too. The shared folder is `C:\Dev\agents\shared`.
+
+BEFORE: read `shared\WORKLOG.md`, then `shared\handoffs\` for this repo. If
+another agent has an open line on this repo, stop and say so. Then add your line.
+
+AFTER: update your WORKLOG line, and write
+`shared\handoffs\YYYY-MM-DD-<agent>-<repo>-<topic>.md` from `_TEMPLATE.md`.
+No session is finished without it.
+
+Shared skills live in `C:\Dev\agents\shared\skills` (56 skills, one copy).
