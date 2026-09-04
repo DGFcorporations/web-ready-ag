@@ -69,3 +69,15 @@ AFTER: update your WORKLOG line, and write
 No session is finished without it.
 
 Shared skills live in `C:\Dev\agents\shared\skills` (56 skills, one copy).
+
+## IF YOU CANNOT REACH C:\Dev — you are a cloud agent
+Jules and any agent that clones this repo into its own VM cannot see
+`C:\Dev\agents\shared`. It is not part of the repository.
+
+In that case:
+- Skip the WORKLOG step; you cannot read it.
+- Write your handoff to `docs/handoffs/YYYY-MM-DD-<agent>-<topic>.md` in THIS repo
+  and commit it with your work, so it arrives with the pull request.
+- State in the PR description what you changed, what you did not finish, and
+  whether anything is uncommitted.
+All the file-placement rules above still apply inside the repo.
