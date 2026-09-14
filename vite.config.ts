@@ -25,5 +25,17 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router"],
+          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-tooltip"],
+          "vendor-data": ["@tanstack/react-query", "@trpc/client", "@trpc/react-query", "@trpc/server", "drizzle-orm", "superjson", "zod"],
+          "vendor-charts": ["recharts"],
+          "vendor-three": ["three", "gsap"],
+        },
+      },
+    },
   },
 });
