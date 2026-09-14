@@ -8,6 +8,7 @@ import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { aeoRouter } from "./routers/aeo";
+import { isAiCrawler, buildAeoPayload } from "./lib/aeo-payload";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -26,26 +27,28 @@ app.use("/api/trpc/*", async (c) => {
 });
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
+// AEO Crawler Interception — serves path-aware structured JSON to AI crawlers.
+// Runs in all environments and before static file serving so AI bots receive
+// route-specific structured data instead of a blanket /llms.txt redirect.
+app.use("*", async (c, next) => {
+  const userAgent = c.req.header("user-agent") || "";
+  const isLlmRequest = c.req.header("accept")?.includes("application/llm") ?? false;
+
+  if (isAiCrawler(userAgent) || isLlmRequest) {
+    const payload = await buildAeoPayload(c.req.path);
+    if (payload) {
+      console.log(`[AEO] Serving structured payload for ${c.req.path} to ${userAgent}`);
+      return c.json(payload);
+    }
+  }
+  await next();
+});
+
 export default app;
 
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
-  
-  // AEO Crawler Interception Middleware
-  app.use("*", async (c, next) => {
-    const userAgent = (c.req.header("user-agent") || "").toLowerCase();
-    const isBot = ["chatgpt-user", "perplexitybot", "claude", "oai-searchbot", "anthropic-ai"].some(bot => userAgent.includes(bot));
-    const isLlmRequest = c.req.header("accept")?.includes("application/llm");
-    
-    if (isBot || isLlmRequest) {
-      // Instead of parsing a 5MB React bundle, we immediately feed the AI the structured knowledge graph.
-      // In a full implementation, we'd route based on c.req.path to serve location-specific context.
-      console.log(`[AEO Middleware] Intercepted AI Crawler: ${userAgent}. Serving structured Context payload.`);
-      return c.redirect("/llms.txt"); 
-    }
-    await next();
-  });
 
   serveStaticFiles(app);
 
