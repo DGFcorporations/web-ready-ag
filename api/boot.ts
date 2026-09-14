@@ -9,8 +9,12 @@ import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { aeoRouter } from "./routers/aeo";
 import { isAiCrawler, buildAeoPayload } from "./lib/aeo-payload";
+import { securityHeaders } from "./lib/headers";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
+
+// Security headers on all responses
+app.use("*", securityHeaders);
 
 // Mount Dynamic AEO Routes (sitemap.xml, llms.txt)
 app.route("/", aeoRouter);
