@@ -157,7 +157,7 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
     return {
       title: r.title,
       description: r.description,
-      canonical: `${BASE_URL}${pathname === "/" ? "" : pathname}`,
+      canonical: `${BASE_URL}${pathname === "/" ? "/" : pathname}`,
       jsonLd,
     };
   }

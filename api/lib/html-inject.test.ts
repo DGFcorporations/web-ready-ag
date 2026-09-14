@@ -89,7 +89,7 @@ describe("resolveRouteMeta", () => {
   it("returns home page meta for /", async () => {
     const meta = await resolveRouteMeta("/");
     expect(meta).not.toBeNull();
-    expect(meta!.canonical).toBe("https://web-ready.ag");
+    expect(meta!.canonical).toBe("https://web-ready.ag/");
     expect(meta!.title).toContain("WEB-READY/AG");
   });
 
