@@ -1,4 +1,11 @@
 import { getDb } from "../queries/connection";
+import {
+  buildOrganizationJsonLd,
+  buildLocalBusinessJsonLd,
+  buildBlogPostingJsonLd,
+  buildBreadcrumbJsonLd,
+  buildWebsiteJsonLd,
+} from "./json-ld";
 
 export interface PageMeta {
   title: string;
@@ -140,10 +147,18 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
   // Static routes
   if (STATIC_ROUTES[pathname]) {
     const r = STATIC_ROUTES[pathname];
+    const jsonLd: object[] = [buildOrganizationJsonLd(), buildWebsiteJsonLd()];
+    if (pathname !== "/") {
+      jsonLd.push(buildBreadcrumbJsonLd([
+        { name: "Home", url: BASE_URL },
+        { name: r.title.split("|")[0].trim(), url: `${BASE_URL}${pathname}` },
+      ]));
+    }
     return {
       title: r.title,
       description: r.description,
-      canonical: `${BASE_URL}${pathname === "/" ? "/" : pathname}`,
+      canonical: `${BASE_URL}${pathname === "/" ? "" : pathname}`,
+      jsonLd,
     };
   }
 
@@ -162,6 +177,14 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
           page.metaDescription ||
           `Veteran-owned AI automation agency serving ${page.city}, ${page.state}.`,
         canonical: `${BASE_URL}/locations/${page.slug}`,
+        jsonLd: [
+          buildLocalBusinessJsonLd(page),
+          buildBreadcrumbJsonLd([
+            { name: "Home", url: BASE_URL },
+            { name: "Locations", url: `${BASE_URL}/locations` },
+            { name: page.city, url: `${BASE_URL}/locations/${page.slug}` },
+          ]),
+        ],
       };
     } catch {
       return null;
@@ -183,6 +206,14 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
           post.metaDescription || post.excerpt || `${post.title} — WEB-READY/AG blog`,
         canonical: `${BASE_URL}/blog/${post.slug}`,
         ogImage: post.featuredImage || undefined,
+        jsonLd: [
+          buildBlogPostingJsonLd(post),
+          buildBreadcrumbJsonLd([
+            { name: "Home", url: BASE_URL },
+            { name: "Blog", url: `${BASE_URL}/blog` },
+            { name: post.title, url: `${BASE_URL}/blog/${post.slug}` },
+          ]),
+        ],
       };
     } catch {
       return null;
