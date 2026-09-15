@@ -50,20 +50,19 @@ app.use("*", async (c, next) => {
 
 export default app;
 
-// Netlify function handler — assigned when running on Netlify (process.env.NETLIFY).
+// Cloudflare Pages handler — assigned when running on Cloudflare Pages (process.env.CF_PAGES).
 // Declared at module top level because `export` cannot appear inside a conditional block.
-export let handler:
-  | ((req: Request, context: unknown) => Response | Promise<Response>)
-  | undefined;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export let handler: any;
 
 if (env.isProduction) {
   const { serveStaticFiles } = await import("./lib/vite");
 
   serveStaticFiles(app);
 
-  // If running on Netlify, export the handler. Otherwise, start the server.
-  if (process.env.NETLIFY) {
-    const { handle } = await import("hono/netlify");
+  // If running on Cloudflare Pages, export the handler. Otherwise, start the server.
+  if (process.env.CF_PAGES) {
+    const { handle } = await import("hono/cloudflare-pages");
     handler = handle(app);
   } else {
     const { serve } = await import("@hono/node-server");
