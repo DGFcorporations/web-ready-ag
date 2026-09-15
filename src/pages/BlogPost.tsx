@@ -4,7 +4,6 @@ import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
 import { Calendar, ArrowLeft, User } from "lucide-react";
-import { useEffect } from "react";
 
 function TagList({ tags }: { tags: unknown }) {
   let parsed: string[] = [];
@@ -32,16 +31,10 @@ export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
   const { data: post } = trpc.blog.getBySlug.useQuery({ slug: slug ?? "" });
 
-  useEffect(() => {
-    if (post) {
-      document.title = `${post.title} | DGF Corporations Blog`;
-    }
-  }, [post]);
-
   if (!post) {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
-        <SEO title="BlogPost | WEB-READY/AG" description="BlogPost page for WEB-READY/AG." />
+        <SEO title="Post Not Found | WEB-READY/AG" description="The requested blog post could not be found." />
       <Navigation />
         <div className="pt-32 pb-24 px-6 text-center">
           <h1 className="text-white text-2xl font-bold">Post not found</h1>
@@ -56,7 +49,11 @@ export default function BlogPost() {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
-      <SEO title="BlogPost | WEB-READY/AG" description="BlogPost page for WEB-READY/AG." />
+      <SEO
+        title={post.metaTitle || `${post.title} | WEB-READY/AG`}
+        description={post.metaDescription || post.excerpt || `${post.title} — WEB-READY/AG blog`}
+        canonical={`https://web-ready.ag/blog/${post.slug}`}
+      />
       <Navigation />
       <article className="pt-32 pb-24 px-6 lg:px-10">
         <div className="max-w-[800px] mx-auto">

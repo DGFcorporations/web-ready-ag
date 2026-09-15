@@ -1,0 +1,232 @@
+import { getDb } from "../queries/connection";
+import {
+  buildOrganizationJsonLd,
+  buildLocalBusinessJsonLd,
+  buildBlogPostingJsonLd,
+  buildBreadcrumbJsonLd,
+  buildWebsiteJsonLd,
+} from "./json-ld";
+
+export interface PageMeta {
+  title: string;
+  description: string;
+  canonical: string;
+  ogImage?: string;
+  jsonLd?: object[];
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Escape a value for safe use inside a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value.replace(/"/g, "&" + "quot;");
+}
+
+function replaceOrInsert(
+  html: string,
+  selector: { tag: string; attr: string; value: string },
+  content: string,
+): string {
+  // Simple regex-based replacement for meta tags and title.
+  // For production, this is sufficient because we control the index.html template.
+  const { tag, attr, value } = selector;
+  const pattern = attr
+    ? new RegExp(`<${tag}[^>]*${attr}=["']${escapeRegex(value)}["'][^>]*>`, "i")
+    : new RegExp(`<${tag}[^>]*>`, "i");
+
+  if (pattern.test(html)) {
+    return html.replace(pattern, content);
+  }
+  // If not found, insert before </head>
+  return html.replace("</head>", `  ${content}\n</head>`);
+}
+
+export function injectMeta(html: string, meta: PageMeta): string {
+  let result = html;
+
+  // Title
+  result = result.replace(/<title>[^<]*<\/title>/i, `<title>${escapeAttr(meta.title)}</title>`);
+
+  // Description
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "name", value: "description" },
+    `<meta name="description" content="${escapeAttr(meta.description)}" />`,
+  );
+
+  // Canonical
+  result = replaceOrInsert(
+    result,
+    { tag: "link", attr: "rel", value: "canonical" },
+    `<link rel="canonical" href="${escapeAttr(meta.canonical)}" />`,
+  );
+
+  // OG title
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "property", value: "og:title" },
+    `<meta property="og:title" content="${escapeAttr(meta.title)}" />`,
+  );
+
+  // OG description
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "property", value: "og:description" },
+    `<meta property="og:description" content="${escapeAttr(meta.description)}" />`,
+  );
+
+  // OG url
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "property", value: "og:url" },
+    `<meta property="og:url" content="${escapeAttr(meta.canonical)}" />`,
+  );
+
+  // OG image
+  if (meta.ogImage) {
+    result = replaceOrInsert(
+      result,
+      { tag: "meta", attr: "property", value: "og:image" },
+      `<meta property="og:image" content="${escapeAttr(meta.ogImage)}" />`,
+    );
+  }
+
+  // Twitter title
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "property", value: "twitter:title" },
+    `<meta property="twitter:title" content="${escapeAttr(meta.title)}" />`,
+  );
+
+  // Twitter description
+  result = replaceOrInsert(
+    result,
+    { tag: "meta", attr: "property", value: "twitter:description" },
+    `<meta property="twitter:description" content="${escapeAttr(meta.description)}" />`,
+  );
+
+  // JSON-LD
+  if (meta.jsonLd && meta.jsonLd.length > 0) {
+    // Remove existing JSON-LD blocks (they'll be replaced by page-specific ones)
+    result = result.replace(/<script\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
+
+    const blocks = meta.jsonLd
+      .map((obj) => `  <script type="application/ld+json">\n${JSON.stringify(obj).replace(/</g, "\\u003c")}\n  </script>`)
+      .join("\n");
+    result = result.replace("</head>", `${blocks}\n</head>`);
+  }
+
+  return result;
+}
+
+const BASE_URL = "https://web-ready.ag";
+
+const STATIC_ROUTES: Record<string, { title: string; description: string }> = {
+  "/": {
+    title: "WEB-READY/AG | AI Automation for Florida Service Businesses",
+    description:
+      "WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility for Florida service businesses.",
+  },
+  "/services": {
+    title: "AI Automation Services | WEB-READY/AG",
+    description:
+      "Voice AI, outreach automation, CRM, review management, SEO, and AI assistants for Florida service businesses.",
+  },
+  "/pricing": {
+    title: "Pricing | WEB-READY/AG",
+    description:
+      "Transparent pricing for AI automation services. Monthly and yearly plans for Florida service businesses.",
+  },
+  "/locations": {
+    title: "Service Areas | WEB-READY/AG",
+    description:
+      "WEB-READY/AG serves Florida service businesses across multiple markets. Find your city.",
+  },
+  "/blog": {
+    title: "Blog | WEB-READY/AG",
+    description:
+      "Insights on AI automation, Answer Engine Optimization, and growing Florida service businesses.",
+  },
+};
+
+export async function resolveRouteMeta(pathname: string): Promise<PageMeta | null> {
+  // Static routes
+  if (STATIC_ROUTES[pathname]) {
+    const r = STATIC_ROUTES[pathname];
+    const jsonLd: object[] = [buildOrganizationJsonLd(), buildWebsiteJsonLd()];
+    if (pathname !== "/") {
+      jsonLd.push(buildBreadcrumbJsonLd([
+        { name: "Home", url: BASE_URL },
+        { name: r.title.split("|")[0].trim(), url: `${BASE_URL}${pathname}` },
+      ]));
+    }
+    return {
+      title: r.title,
+      description: r.description,
+      canonical: `${BASE_URL}${pathname === "/" ? "/" : pathname}`,
+      jsonLd,
+    };
+  }
+
+  // /locations/:slug
+  const locMatch = pathname.match(/^\/locations\/([^/]+)$/);
+  if (locMatch) {
+    try {
+      const db = getDb();
+      const page = await db.query.geoPages.findFirst({
+        where: (g, { eq, and }) => and(eq(g.slug, locMatch[1]), eq(g.isActive, true)),
+      });
+      if (!page) return null;
+      return {
+        title: page.metaTitle || `AI Automation Services in ${page.city}, ${page.state}`,
+        description:
+          page.metaDescription ||
+          `Veteran-owned AI automation agency serving ${page.city}, ${page.state}.`,
+        canonical: `${BASE_URL}/locations/${page.slug}`,
+        jsonLd: [
+          buildLocalBusinessJsonLd(page),
+          buildBreadcrumbJsonLd([
+            { name: "Home", url: BASE_URL },
+            { name: "Locations", url: `${BASE_URL}/locations` },
+            { name: page.city, url: `${BASE_URL}/locations/${page.slug}` },
+          ]),
+        ],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // /blog/:slug
+  const blogMatch = pathname.match(/^\/blog\/([^/]+)$/);
+  if (blogMatch) {
+    try {
+      const db = getDb();
+      const post = await db.query.blogPosts.findFirst({
+        where: (b, { eq, and }) => and(eq(b.slug, blogMatch[1]), eq(b.isPublished, true)),
+      });
+      if (!post) return null;
+      return {
+        title: post.metaTitle || `${post.title} | WEB-READY/AG`,
+        description:
+          post.metaDescription || post.excerpt || `${post.title} — WEB-READY/AG blog`,
+        canonical: `${BASE_URL}/blog/${post.slug}`,
+        ogImage: post.featuredImage || undefined,
+        jsonLd: [
+          buildBlogPostingJsonLd(post),
+          buildBreadcrumbJsonLd([
+            { name: "Home", url: BASE_URL },
+            { name: "Blog", url: `${BASE_URL}/blog` },
+            { name: post.title, url: `${BASE_URL}/blog/${post.slug}` },
+          ]),
+        ],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
