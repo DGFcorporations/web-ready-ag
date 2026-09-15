@@ -11,7 +11,7 @@ import { aeoRouter } from "./routers/aeo";
 import { isAiCrawler, buildAeoPayload } from "./lib/aeo-payload";
 import { securityHeaders } from "./lib/headers";
 
-const app = new Hono<{ Bindings: HttpBindings }>();
+const app = new Hono<{ Bindings: HttpBindings & { ASSETS?: { fetch: (req: Request) => Promise<Response> } } }>();
 
 // Security headers on all responses
 app.use("*", securityHeaders);
@@ -50,21 +50,13 @@ app.use("*", async (c, next) => {
 
 export default app;
 
-// Cloudflare Pages handler — assigned when running on Cloudflare Pages (process.env.CF_PAGES).
-// Declared at module top level because `export` cannot appear inside a conditional block.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export let handler: any;
-
 if (env.isProduction) {
   const { serveStaticFiles } = await import("./lib/vite");
-
   serveStaticFiles(app);
 
-  // If running on Cloudflare Pages, export the handler. Otherwise, start the server.
-  if (process.env.CF_PAGES) {
-    const { handle } = await import("hono/cloudflare-pages");
-    handler = handle(app);
-  } else {
+  // On Cloudflare Pages, the handler is created by functions/[[routes]].ts
+  // via handle(app). On Node.js, start the standalone server.
+  if (!process.env.CF_PAGES) {
     const { serve } = await import("@hono/node-server");
     const port = parseInt(process.env.PORT || "3000");
     serve({ fetch: app.fetch, port }, () => {

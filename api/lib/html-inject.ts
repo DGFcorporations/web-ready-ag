@@ -19,6 +19,11 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Escape a value for safe use inside a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value.replace(/"/g, "&" + "quot;");
+}
+
 function replaceOrInsert(
   html: string,
   selector: { tag: string; attr: string; value: string },
@@ -42,41 +47,41 @@ export function injectMeta(html: string, meta: PageMeta): string {
   let result = html;
 
   // Title
-  result = result.replace(/<title>[^<]*<\/title>/i, `<title>${meta.title}</title>`);
+  result = result.replace(/<title>[^<]*<\/title>/i, `<title>${escapeAttr(meta.title)}</title>`);
 
   // Description
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "name", value: "description" },
-    `<meta name="description" content="${meta.description}" />`,
+    `<meta name="description" content="${escapeAttr(meta.description)}" />`,
   );
 
   // Canonical
   result = replaceOrInsert(
     result,
     { tag: "link", attr: "rel", value: "canonical" },
-    `<link rel="canonical" href="${meta.canonical}" />`,
+    `<link rel="canonical" href="${escapeAttr(meta.canonical)}" />`,
   );
 
   // OG title
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "property", value: "og:title" },
-    `<meta property="og:title" content="${meta.title}" />`,
+    `<meta property="og:title" content="${escapeAttr(meta.title)}" />`,
   );
 
   // OG description
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "property", value: "og:description" },
-    `<meta property="og:description" content="${meta.description}" />`,
+    `<meta property="og:description" content="${escapeAttr(meta.description)}" />`,
   );
 
   // OG url
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "property", value: "og:url" },
-    `<meta property="og:url" content="${meta.canonical}" />`,
+    `<meta property="og:url" content="${escapeAttr(meta.canonical)}" />`,
   );
 
   // OG image
@@ -84,7 +89,7 @@ export function injectMeta(html: string, meta: PageMeta): string {
     result = replaceOrInsert(
       result,
       { tag: "meta", attr: "property", value: "og:image" },
-      `<meta property="og:image" content="${meta.ogImage}" />`,
+      `<meta property="og:image" content="${escapeAttr(meta.ogImage)}" />`,
     );
   }
 
@@ -92,20 +97,23 @@ export function injectMeta(html: string, meta: PageMeta): string {
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "property", value: "twitter:title" },
-    `<meta property="twitter:title" content="${meta.title}" />`,
+    `<meta property="twitter:title" content="${escapeAttr(meta.title)}" />`,
   );
 
   // Twitter description
   result = replaceOrInsert(
     result,
     { tag: "meta", attr: "property", value: "twitter:description" },
-    `<meta property="twitter:description" content="${meta.description}" />`,
+    `<meta property="twitter:description" content="${escapeAttr(meta.description)}" />`,
   );
 
   // JSON-LD
   if (meta.jsonLd && meta.jsonLd.length > 0) {
+    // Remove existing JSON-LD blocks (they'll be replaced by page-specific ones)
+    result = result.replace(/<script\s+type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
+
     const blocks = meta.jsonLd
-      .map((obj) => `  <script type="application/ld+json">\n${JSON.stringify(obj)}\n  </script>`)
+      .map((obj) => `  <script type="application/ld+json">\n${JSON.stringify(obj).replace(/</g, "\\u003c")}\n  </script>`)
       .join("\n");
     result = result.replace("</head>", `${blocks}\n</head>`);
   }

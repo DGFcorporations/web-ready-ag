@@ -79,9 +79,10 @@ describe("injectMeta", () => {
     };
     const result = injectMeta(baseHtml, meta);
     const matches = result.match(/application\/ld\+json/g);
-    // The base HTML already has one JSON-LD block (Organization/FAQ).
-    // We inject a new one, so there should be 2 total.
-    expect(matches?.length).toBe(2);
+    // The base HTML has one JSON-LD block (Organization/FAQ).
+    // injectMeta removes existing JSON-LD blocks and injects page-specific ones,
+    // so there should be exactly 1 total (the injected one).
+    expect(matches?.length).toBe(1);
   });
 });
 
