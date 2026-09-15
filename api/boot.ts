@@ -50,14 +50,26 @@ app.use("*", async (c, next) => {
 
 export default app;
 
+// Netlify function handler — assigned when running on Netlify (process.env.NETLIFY).
+// Declared at module top level because `export` cannot appear inside a conditional block.
+export let handler:
+  | ((req: Request, context: unknown) => Response | Promise<Response>)
+  | undefined;
+
 if (env.isProduction) {
-  const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
 
   serveStaticFiles(app);
 
-  const port = parseInt(process.env.PORT || "3000");
-  serve({ fetch: app.fetch, port }, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
+  // If running on Netlify, export the handler. Otherwise, start the server.
+  if (process.env.NETLIFY) {
+    const { handle } = await import("hono/netlify");
+    handler = handle(app);
+  } else {
+    const { serve } = await import("@hono/node-server");
+    const port = parseInt(process.env.PORT || "3000");
+    serve({ fetch: app.fetch, port }, () => {
+      console.log(`Server running on http://localhost:${port}/`);
+    });
+  }
 }
