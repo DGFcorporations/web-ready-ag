@@ -52,7 +52,7 @@ export default app;
 
 if (env.isProduction) {
   const { serveStaticFiles } = await import("./lib/vite");
-  serveStaticFiles(app);
+  await serveStaticFiles(app);
 
   // On Cloudflare Pages, the handler is created by functions/[[routes]].ts
   // via handle(app). On Node.js, start the standalone server.
