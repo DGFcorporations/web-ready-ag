@@ -48,3 +48,5 @@ __pycache__/
 venv/
 Thumbs.db
 _agent-scratch/
+
+_to_delete/
