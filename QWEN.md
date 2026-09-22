@@ -51,6 +51,20 @@ anything there you would be sad to lose — and never put throwaway anywhere els
 - Never `git add` anything in `_agent-scratch/`, `node_modules/`, `dist/`,
   `.venv/`, `__pycache__/`, `_to_delete/`.
 
+## VERIFY — the honest gate
+"Done" means a real command exits 0. Run it before reporting; a claim without
+a green run is a false report.
+
+| Gate | Command |
+|---|---|
+| Tests | `npm test` — vitest run |
+| Typecheck | `npm run check` — `tsc -b` |
+| Build | `npm run build` — vite + api bundle to `dist/` |
+| Lint | `npm run lint` — eslint |
+
+Environment: Node 20+, `npm install` first if `node_modules/` is stale. No
+secrets needed for the default gates.
+
 ## END OF SESSION — REQUIRED
 1. Run `git status` and report the actual output.
 2. List every file you created, with its full path.
