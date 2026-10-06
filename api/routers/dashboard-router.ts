@@ -7,17 +7,15 @@ import { orders, leads, users, orderServices } from "@db/schema";
 export const dashboardRouter = createRouter({
   stats: adminQuery.query(async () => {
     const db = getDb();
-    const usersCount = await db.select({ count: sql<number>`count(*)` }).from(users);
-    const ordersCount = await db.select({ count: sql<number>`count(*)` }).from(orders);
-    const leadsCount = await db.select({ count: sql<number>`count(*)` }).from(leads);
-    const revenueResult = await db
-      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-      .from(orders)
-      .where(eq(orders.status, "active"));
-    const deployingCount = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orderServices)
-      .where(eq(orderServices.deploymentStatus, "in_progress"));
+    // ⚡ Bolt: Using Promise.all to run 5 independent DB queries concurrently instead of sequentially
+    // Reduces latency on dashboard load by parallelizing I/O
+    const [usersCount, ordersCount, leadsCount, revenueResult, deployingCount] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(users),
+      db.select({ count: sql<number>`count(*)` }).from(orders),
+      db.select({ count: sql<number>`count(*)` }).from(leads),
+      db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` }).from(orders).where(eq(orders.status, "active")),
+      db.select({ count: sql<number>`count(*)` }).from(orderServices).where(eq(orderServices.deploymentStatus, "in_progress"))
+    ]);
 
     return {
       users: Number(usersCount[0].count),
@@ -62,22 +60,14 @@ export const dashboardRouter = createRouter({
 
   deploymentsByStatus: adminQuery.query(async () => {
     const db = getDb();
-    const pending = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orderServices)
-      .where(eq(orderServices.deploymentStatus, "pending"));
-    const inProgress = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orderServices)
-      .where(eq(orderServices.deploymentStatus, "in_progress"));
-    const completed = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orderServices)
-      .where(eq(orderServices.deploymentStatus, "completed"));
-    const failed = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orderServices)
-      .where(eq(orderServices.deploymentStatus, "failed"));
+    // ⚡ Bolt: Using Promise.all to run 4 independent DB queries concurrently instead of sequentially
+    // Reduces latency by executing these counts in parallel
+    const [pending, inProgress, completed, failed] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(orderServices).where(eq(orderServices.deploymentStatus, "pending")),
+      db.select({ count: sql<number>`count(*)` }).from(orderServices).where(eq(orderServices.deploymentStatus, "in_progress")),
+      db.select({ count: sql<number>`count(*)` }).from(orderServices).where(eq(orderServices.deploymentStatus, "completed")),
+      db.select({ count: sql<number>`count(*)` }).from(orderServices).where(eq(orderServices.deploymentStatus, "failed"))
+    ]);
 
     return [
       { status: "pending", count: Number(pending[0].count) },
