@@ -78,10 +78,14 @@ export const leadRouter = createRouter({
 
   getStats: adminQuery.query(async () => {
     const db = getDb();
-    const totalResult = await db.select({ count: sql<number>`count(*)` }).from(leads);
-    const newResult = await db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new"));
-    const convertedResult = await db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "converted"));
-    const qualifiedResult = await db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "qualified"));
+    // ⚡ Bolt: Using Promise.all to run 4 independent DB queries concurrently instead of sequentially
+    // Reduces latency on lead stats retrieval by parallelizing I/O
+    const [totalResult, newResult, convertedResult, qualifiedResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(leads),
+      db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
+      db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "converted")),
+      db.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "qualified"))
+    ]);
 
     return {
       totalLeads: Number(totalResult[0].count),

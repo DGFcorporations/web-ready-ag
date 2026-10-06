@@ -139,13 +139,14 @@ export const orderRouter = createRouter({
 
   getStats: adminQuery.query(async () => {
     const db = getDb();
-    const totalResult = await db.select({ count: sql<number>`count(*)` }).from(orders);
-    const activeResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.status, "active"));
-    const pendingResult = await db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.status, "paid"));
-    const revenueResult = await db
-      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-      .from(orders)
-      .where(eq(orders.status, "active"));
+    // ⚡ Bolt: Using Promise.all to run 4 independent DB queries concurrently instead of sequentially
+    // Reduces latency on order stats retrieval by parallelizing I/O
+    const [totalResult, activeResult, pendingResult, revenueResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(orders),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.status, "active")),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.status, "paid")),
+      db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` }).from(orders).where(eq(orders.status, "active"))
+    ]);
 
     return {
       totalOrders: Number(totalResult[0].count),
