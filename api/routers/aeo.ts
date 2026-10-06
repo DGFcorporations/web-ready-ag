@@ -6,8 +6,12 @@ const aeoRouter = new Hono();
 // Dynamic Sitemap
 aeoRouter.get("/sitemap.xml", async (c) => {
   const db = getDb();
-  const geoPages = await db.query.geoPages.findMany({ where: (geo, { eq }) => eq(geo.isActive, true) });
-  const blogPosts = await db.query.blogPosts.findMany({ where: (post, { eq }) => eq(post.isPublished, true) });
+  // ⚡ Bolt: Using Promise.all to run 2 independent DB queries concurrently instead of sequentially
+  // Reduces latency for search engine and AI crawlers
+  const [geoPages, blogPosts] = await Promise.all([
+    db.query.geoPages.findMany({ where: (geo, { eq }) => eq(geo.isActive, true) }),
+    db.query.blogPosts.findMany({ where: (post, { eq }) => eq(post.isPublished, true) })
+  ]);
   
   const baseUrl = "https://web-ready.ag";
   
@@ -43,8 +47,12 @@ ${urls.map(u => `  <url>
 // Dynamic LLMs.txt
 aeoRouter.get("/llms.txt", async (c) => {
   const db = getDb();
-  const services = await db.query.services.findMany({ orderBy: (svc, { asc }) => [asc(svc.sortOrder)] });
-  const geoPages = await db.query.geoPages.findMany({ where: (geo, { eq }) => eq(geo.isActive, true) });
+  // ⚡ Bolt: Using Promise.all to run 2 independent DB queries concurrently instead of sequentially
+  // Reduces latency for LLMs reading knowledge graph
+  const [services, geoPages] = await Promise.all([
+    db.query.services.findMany({ orderBy: (svc, { asc }) => [asc(svc.sortOrder)] }),
+    db.query.geoPages.findMany({ where: (geo, { eq }) => eq(geo.isActive, true) })
+  ]);
 
   let md = `# WEB-READY/AG Knowledge Graph\n\n`;
   md += `WEB-READY/AG is a veteran-owned AI automation agency based in Florida. We optimize websites for the AI era and build Agent-Grade structured data and Answer Engine visibility for local service businesses.\n\n`;
@@ -71,18 +79,22 @@ aeoRouter.get("/llms.txt", async (c) => {
 // Comprehensive LLMs Full Text
 aeoRouter.get("/llms-full.txt", async (c) => {
   const db = getDb();
-  const services = await db.query.services.findMany({
-    where: (svc, { eq }) => eq(svc.isActive, true),
-    orderBy: (svc, { asc }) => [asc(svc.sortOrder)],
-  });
-  const geoPages = await db.query.geoPages.findMany({
-    where: (geo, { eq }) => eq(geo.isActive, true),
-    orderBy: (geo, { asc }) => [asc(geo.city)],
-  });
-  const posts = await db.query.blogPosts.findMany({
-    where: (post, { eq }) => eq(post.isPublished, true),
-    orderBy: (post, { desc }) => [post.publishedAt],
-  });
+  // ⚡ Bolt: Using Promise.all to run 3 independent DB queries concurrently instead of sequentially
+  // Drastically speeds up LLM context ingestion
+  const [services, geoPages, posts] = await Promise.all([
+    db.query.services.findMany({
+      where: (svc, { eq }) => eq(svc.isActive, true),
+      orderBy: (svc, { asc }) => [asc(svc.sortOrder)],
+    }),
+    db.query.geoPages.findMany({
+      where: (geo, { eq }) => eq(geo.isActive, true),
+      orderBy: (geo, { asc }) => [asc(geo.city)],
+    }),
+    db.query.blogPosts.findMany({
+      where: (post, { eq }) => eq(post.isPublished, true),
+      orderBy: (post, { desc }) => [post.publishedAt],
+    })
+  ]);
 
   let md = `# WEB-READY/AG — Complete Knowledge Base for AI Systems\n\n`;
   md += `> This file provides comprehensive information about WEB-READY/AG for large language models and answer engines.\n\n`;
