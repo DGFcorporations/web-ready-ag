@@ -1,23 +1,79 @@
+# WEB-READY/AG Titan Multi-Engine Crawler Policy
+# Engineered for Google, Perplexity, OpenAI Search, and Brave Search (Claude)
+
 User-agent: *
 Allow: /
 
-# AI Crawlers — explicitly allowed
-User-agent: ChatGPT-User
-Allow: /
+# Surgical Query-Parameter Crawl Fence (Cleveland Clinic Pattern)
+# Prevents crawl budget waste on faceted/search URL permutations
+Disallow: /Search
+Disallow: /search
+Disallow: /*?q=*
+Disallow: /*?search=*
+Disallow: /*?filter=*
+Disallow: /*?sort=*
+Disallow: /*?date=*
+Disallow: /*?view=*
 
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: anthropic-ai
+# 1. Google Core & Gemini AI Overviews
+User-agent: Googlebot
 Allow: /
 
 User-agent: Google-Extended
 Allow: /
 
+# 2. OpenAI / ChatGPT Search & Grounding
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+# 3. Perplexity AI / Sonar Real-Time Engine
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# 4. Brave Search & Anthropic Claude (86.7% Citation Overlap)
+User-agent: BraveBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# 5. Bing, Apple, Meta & Cohere Ecosystem Crawlers
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: AI2Bot
+Allow: /
+
 Sitemap: https://web-ready.ag/sitemap.xml
+LLMs: https://web-ready.ag/llms.txt
+LLMs-Full: https://web-ready.ag/llms-full.txt

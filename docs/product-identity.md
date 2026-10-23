@@ -69,3 +69,27 @@ Every site managed by or exported from WebReady-AG satisfies the DGF 5-Gate Stan
 3. **Gate 3 (Entity Graph):** Comprehensive JSON-LD linking business identity, founders, service areas, and customer guarantees.
 4. **Gate 4 (Content Integrity):** No unsourced price claims; stoplight auditing (GO / CAUTION / STOP) aligned with published vendor ledgers.
 5. **Gate 5 (Agent Interoperability):** Full compliance with RFC-style AI agent protocol (`llms.txt`, `ai.txt`, and OpenAPI tool endpoints).
+
+---
+
+## 4. Fleet engine boundary
+
+WebReady-AG is the product engine. The fleet seats stay independent: Snow orchestrates, Bob builds, Rock can block on security, Lizzy writes the design spec, Bart can block on design conformance, Ace directs recon, and Hermes scrapes. WebReady-AG calls that independent crew. It does not absorb the seats into this repository, and it does not run DGF Corporations operations.
+
+Posting for `verifiedantiagingclinics.com` is Make.com scenario 6220644. The material is already in Google Drive at `VerifiedAntiAging_Campaigns/Auto_Publish_Queue/`. Finished work, including Lizzy's, stays there and runs. Ops does not post. Ops only checks that those Make runs land on TikTok, YouTube, or Meta for that property. DGF accounts are outside this watch.
+
+---
+
+## 5. The 7-Layer Single-Layer Execution Engine & 4-Engine Titan Standard
+
+WebReady-AG operationalizes the universal 7-layer skill stack (`agents/shared/skills/web-ready-ag`) to move any web property to the #1 position across **Google (Core & AI Overviews)**, **Perplexity (Sonar)**, **OpenAI (ChatGPT Search)**, and **Brave Search (Claude)**:
+
+1. **Layer 1 (`web-ag-edge-vitals`):** Pre-rendered semantic HTML shell inside `#root` (`<150ms` TTFB, `0.00` CLS), full 12-Bot AI Search Allowlist (`Googlebot`, `Google-Extended`, `OAI-SearchBot`, `ChatGPT-User`, `GPTBot`, `PerplexityBot`, `Perplexity-User`, `BraveBot`, `Claude-SearchBot`, `Claude-User`, `ClaudeBot`, `anthropic-ai`), and surgical query-parameter crawl fence (`Disallow: /*?q=*`, `/*?filter=*`).
+2. **Layer 2 (`web-ag-entity-graph`):** Interconnected JSON-LD `@graph` binding entities and locations to canonical **Wikidata Q-ID URIs** (`http://www.wikidata.org/entity/Q...`), 1-sentence factual definition inside JSON-LD `headline`, and primary authority `citation[]` arrays.
+3. **Layer 3 (`web-ag-programmatic-matrix`):** Combinatorial `/{service}/{location}` taxonomy, self-referencing canonicals, and `BreadcrumbList` link mesh.
+4. **Layer 4 (`web-ag-data-floor`):** Transparent pricing/feature tables and primary institutional citations that capture the walled-garden citation vacuum.
+5. **Layer 5 (`web-ag-geo-extraction`):** Wikipedia-style Top-of-DOM `<table class="entity-infobox">` in the first 5KB of HTML, Cleveland Clinic `H2` Pillar $\times$ literal Question `H3` Fan-Out tree, and `/llms.txt` + `/llms-full.txt` corpora.
+6. **Layer 6 (`web-ag-consensus-engine`):** Dual-track Share of Model (SoM) expansion across community hubs (Google/Perplexity/OpenAI) and open technical corpora (Brave/Claude).
+7. **Layer 7 (`web-ag-sentinel-audit`):** Deterministic 7-Layer and 4-Engine readiness scoring (`/api/titan-audit`) with single-layer autonomous remediation.
+
+

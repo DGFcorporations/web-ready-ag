@@ -8,7 +8,7 @@ import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { aeoRouter } from "./routers/aeo";
-import { isAiCrawler, buildAeoPayload } from "./lib/aeo-payload";
+import { isAiCrawler, buildAeoPayload, buildAeoMarkdownPayload } from "./lib/aeo-payload";
 import { securityHeaders } from "./lib/headers";
 
 const app = new Hono<{ Bindings: HttpBindings & { ASSETS?: { fetch: (req: Request) => Promise<Response> } } }>();
@@ -16,7 +16,7 @@ const app = new Hono<{ Bindings: HttpBindings & { ASSETS?: { fetch: (req: Reques
 // Security headers on all responses
 app.use("*", securityHeaders);
 
-// Mount Dynamic AEO Routes (sitemap.xml, llms.txt)
+// Mount Dynamic AEO Routes (sitemap.xml, llms.txt, llms-full.txt, ai.txt, /api/titan-audit)
 app.route("/", aeoRouter);
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
@@ -31,12 +31,22 @@ app.use("/api/trpc/*", async (c) => {
 });
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
-// AEO Crawler Interception — serves path-aware structured JSON to AI crawlers.
-// Runs in all environments and before static file serving so AI bots receive
-// route-specific structured data instead of a blanket /llms.txt redirect.
+// AEO Crawler & Content Negotiation Interception:
+// - `Accept: text/markdown` serves clean Markdown with Top-of-DOM Infobox table + H3 Fan-Out.
+// - AI crawlers or `Accept: application/llm` receive structured JSON knowledge graphs.
 app.use("*", async (c, next) => {
   const userAgent = c.req.header("user-agent") || "";
-  const isLlmRequest = c.req.header("accept")?.includes("application/llm") ?? false;
+  const accept = c.req.header("accept") || "";
+  const isLlmRequest = accept.includes("application/llm");
+  const isMarkdownRequest = accept.includes("text/markdown");
+
+  if (isMarkdownRequest) {
+    const md = await buildAeoMarkdownPayload(c.req.path);
+    if (md) {
+      c.header("Content-Type", "text/markdown; charset=utf-8");
+      return c.body(md);
+    }
+  }
 
   if (isAiCrawler(userAgent) || isLlmRequest) {
     const payload = await buildAeoPayload(c.req.path);
