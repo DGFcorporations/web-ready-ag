@@ -4,6 +4,7 @@ import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
+import TitanEngineMatrix from "@/sections/TitanEngineMatrix";
 import { Package, CreditCard, Settings, ArrowRight, Loader2 } from "lucide-react";
 
 export default function Dashboard() {
@@ -25,14 +26,15 @@ export default function Dashboard() {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
         <SEO title="Dashboard | WEB-READY/AG" description="Dashboard page for WEB-READY/AG." />
-      <Navigation />
-        <div className="pt-32 pb-24 px-6 text-center">
+        <Navigation />
+        <div className="pt-32 pb-12 px-6 text-center">
           <h1 className="text-white text-2xl font-bold mb-4">Please Sign In</h1>
-          <p className="text-[#8A8A8A] mb-6">Sign in to view your dashboard and manage your services.</p>
+          <p className="text-[#8A8A8A] mb-6">Sign in to view your orders, or use the 7-Layer Dominance Workbench below.</p>
           <Link to="/login" className="bg-[#C8A45C] text-[#0A0A0A] px-8 py-3 font-semibold hover:bg-[#D4BC7E] transition-colors">
             Sign In
           </Link>
         </div>
+        <TitanEngineMatrix compact />
         <Footer />
       </div>
     );
@@ -161,6 +163,7 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+      <TitanEngineMatrix compact />
       <Footer />
     </div>
   );

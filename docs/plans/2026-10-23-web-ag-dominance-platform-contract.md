@@ -3,7 +3,7 @@
 **Target Repository:** `repos/web-ready-ag`  
 **Master Skill Binding:** `agents/shared/skills/web-ready-ag/SKILL.md` ( + Layers 1–7 Sub-Skills)  
 **Target Retrieval Backends:** Google (Core & AI Overviews), Perplexity (Sonar), OpenAI (ChatGPT Search), Brave Search (Claude 86.7% Backend)  
-**Status:** `PENDING_OWNER_APPROVAL`
+**Status:** `APPROVED`
 
 ---
 
@@ -51,9 +51,11 @@ repos/web-ready-ag/
 ├── [NEW]    api/lib/url-guard.test.ts             # Unit tests for SSRF protection & URL normalization
 ├── [NEW]    api/lib/artifact-generator.ts         # Generates drop-in Layer 1–7 code artifacts (robots.txt, @graph JSON-LD, Infobox HTML, llms.txt) for any audited domain
 ├── [NEW]    api/lib/artifact-generator.test.ts    # Unit tests for artifact generation across niches
-├── [NEW]    api/routers/titan-router.ts           # tRPC router: auditUrl, auditHtml, generateLayerArtifacts, getLayersSpec
+├── [NEW]    api/routers/titan-router.ts           # tRPC router: getSpec, auditHtml, auditLiveUrl, generateArtifacts
+├── [NEW]    api/routers/titan-router.test.ts      # Contract & security tests for tRPC Titan endpoints
 ├── [MODIFY] api/router.ts                         # Mount `titan: titanRouter` on appRouter
 ├── [NEW]    src/sections/TitanEngineMatrix.tsx    # Interactive 7-Layer & 4-Engine (Google, Perplexity, OpenAI, Brave/Claude) Workbench UI
+├── [NEW]    src/sections/TitanEngineMatrix.test.tsx # Component tests for 7-Layer & 4-Engine Workbench UI
 ├── [MODIFY] src/pages/Home.tsx                    # Render TitanEngineMatrix section on the Web AG home page
 └── [MODIFY] src/pages/Dashboard.tsx               # Integrate the 7-Layer Single-Layer Tracker & Artifact Generator into the client dashboard
 ```

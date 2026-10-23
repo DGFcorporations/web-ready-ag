@@ -10,6 +10,7 @@ import PricingSection from "@/sections/PricingSection";
 import Values from "@/sections/Values";
 import CTASection from "@/sections/CTASection";
 import AEOFAQSection from "@/sections/AEOFAQSection";
+import TitanEngineMatrix from "@/sections/TitanEngineMatrix";
 import SEO from "@/components/SEO";
 
 export default function Home() {
@@ -23,6 +24,7 @@ export default function Home() {
       <Navigation />
       <Hero />
       <TrustedBy />
+      <TitanEngineMatrix />
       <ServicesShowcase />
       <Process />
       <Capabilities />

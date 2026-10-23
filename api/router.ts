@@ -8,6 +8,7 @@ import { geoRouter } from "./routers/geo-router";
 import { blogRouter } from "./routers/blog-router";
 import { testimonialRouter } from "./routers/testimonial-router";
 import { dashboardRouter } from "./routers/dashboard-router";
+import { titanRouter } from "./routers/titan-router";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -20,6 +21,7 @@ export const appRouter = createRouter({
   blog: blogRouter,
   testimonial: testimonialRouter,
   dashboard: dashboardRouter,
+  titan: titanRouter,
 });
 
 export type AppRouter = typeof appRouter;
