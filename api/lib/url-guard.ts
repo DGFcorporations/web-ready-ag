@@ -114,38 +114,136 @@ export function isBlockedIpv4(ip: string): boolean {
   return false;
 }
 
+const ALLOWED_PORTS = new Set(["", "80", "443"]);
+
+/**
+ * Parses an IPv6 address string (without brackets or zone ID) into 8 16-bit words.
+ * Returns null if the string is not a valid IPv6 representation.
+ */
+function parseIpv6Words(cleanHost: string): number[] | null {
+  let working = cleanHost;
+
+  // Handle embedded dotted-quad IPv4 at the end (e.g. ::ffff:127.0.0.1 or ::127.0.0.1)
+  const lastColon = working.lastIndexOf(":");
+  if (lastColon !== -1 && working.slice(lastColon + 1).includes(".")) {
+    const ipv4Part = working.slice(lastColon + 1);
+    const parts = ipv4Part.split(".");
+    if (parts.length !== 4) return null;
+    const octets = parts.map((p) => (/^\d+$/.test(p) ? Number(p) : NaN));
+    if (octets.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+    const highWord = ((octets[0] << 8) | octets[1]).toString(16);
+    const lowWord = ((octets[2] << 8) | octets[3]).toString(16);
+    working = `${working.slice(0, lastColon + 1)}${highWord}:${lowWord}`;
+  }
+
+  const doubleColonParts = working.split("::");
+  if (doubleColonParts.length > 2) return null;
+
+  const parseSegmentList = (segmentStr: string): number[] | null => {
+    if (!segmentStr) return [];
+    const segs = segmentStr.split(":");
+    const nums: number[] = [];
+    for (const seg of segs) {
+      if (!/^[0-9a-f]{1,4}$/i.test(seg)) return null;
+      nums.push(parseInt(seg, 16));
+    }
+    return nums;
+  };
+
+  if (doubleColonParts.length === 2) {
+    const left = parseSegmentList(doubleColonParts[0]);
+    const right = parseSegmentList(doubleColonParts[1]);
+    if (!left || !right) return null;
+    const missing = 8 - (left.length + right.length);
+    if (missing < 1) return null;
+    return [...left, ...new Array(missing).fill(0), ...right];
+  }
+
+  const full = parseSegmentList(working);
+  if (!full || full.length !== 8) return null;
+  return full;
+}
+
 /**
  * Checks whether an IPv6 literal (with or without brackets) is loopback,
- * unspecified, link-local, unique-local, multicast, or IPv4-mapped.
+ * unspecified, link-local, unique-local, multicast, NAT64, 6to4, Teredo,
+ * documentation, or IPv4-mapped/compatible.
  */
 export function isBlockedIpv6(rawHost: string): boolean {
   const clean = rawHost.replace(/^\[|\]$/g, "").split("%")[0].toLowerCase();
+  const words = parseIpv6Words(clean);
+  if (!words) {
+    return true;
+  }
+
+  const [w0, w1, w2, w3, w4, w5, w6, w7] = words;
+
+  // Unspecified (::/128), Loopback (::1/128), or IPv4-compatible (::/96 -> w0..w5 === 0)
+  if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0) {
+    return true;
+  }
+
+  // IPv4-mapped (::ffff:0:0/96) or IPv4-translated (::ffff:0:0:0/96)
   if (
-    clean === "::1" ||
-    clean === "::" ||
-    clean === "0:0:0:0:0:0:0:1" ||
-    clean === "0:0:0:0:0:0:0:0"
+    w0 === 0 &&
+    w1 === 0 &&
+    w2 === 0 &&
+    w3 === 0 &&
+    ((w4 === 0 && w5 === 0xffff) || (w4 === 0xffff && w5 === 0))
   ) {
     return true;
   }
-  // Block IPv4-mapped or IPv4-compatible IPv6 addresses (e.g. ::ffff:127.0.0.1, ::127.0.0.1)
+
+  // NAT64 well-known prefix (64:ff9b::/96 and 64:ff9b:1::/48)
+  if (w0 === 0x0064 && w1 === 0xff9b) {
+    return true;
+  }
+
+  // Discard-only address block (100::/64)
+  if (w0 === 0x0100 && w1 === 0 && w2 === 0 && w3 === 0) {
+    return true;
+  }
+
+  // IETF Protocol Assignments (2001::/23), including Teredo (2001:0000::/32) & Benchmarking (2001:0002::/48)
+  if (w0 === 0x2001 && w1 <= 0x01ff) {
+    return true;
+  }
+
+  // Documentation prefix (2001:db8::/32)
+  if (w0 === 0x2001 && w1 === 0x0db8) {
+    return true;
+  }
+
+  // 6to4 prefix (2002::/16) — embeds an IPv4 address in w1:w2
+  if (w0 === 0x2002) {
+    const embeddedIpv4 = `${w1 >> 8}.${w1 & 0xff}.${w2 >> 8}.${w2 & 0xff}`;
+    if (isBlockedIpv4(embeddedIpv4)) {
+      return true;
+    }
+  }
+
+  // Unique local (fc00::/7), Link-local (fe80::/10), Site-local (fec0::/10), Multicast (ff00::/8)
   if (
-    clean.startsWith("::ffff:") ||
-    clean.startsWith("0:0:0:0:0:ffff:") ||
-    /^::\d+\.\d+\.\d+\.\d+$/.test(clean)
+    (w0 & 0xfe00) === 0xfc00 ||
+    (w0 & 0xffc0) === 0xfe80 ||
+    (w0 & 0xffc0) === 0xfec0 ||
+    (w0 & 0xff00) === 0xff00
   ) {
     return true;
   }
-  // Unique local (fc00::/7 -> fc.. or fd..), Link-local (fe80::/10), Multicast (ff00::/8), Documentation (2001:db8::/32)
-  if (/^(fc|fd|fe8|fe9|fea|feb|ff|2001:db8:|2001:0db8:)/.test(clean)) {
+
+  // Check if trailing 32 bits form a loopback when upper bits are zeroed
+  if (w6 === 0 && w7 === 1 && w0 === 0) {
     return true;
   }
+
   return false;
 }
 
 /**
  * Validates and normalizes a user-supplied URL for SSRF-safe public auditing.
- * Blocks non-HTTP/HTTPS schemes, credentials, internal hostnames, rebinding domains, and private IP ranges.
+ * Blocks non-HTTP/HTTPS schemes, non-standard ports, credentials, internal hostnames,
+ * rebinding domains, and private IPv4/IPv6 ranges.
  */
 export function validatePublicAuditUrl(rawInput: string): UrlValidationResult {
   const trimmed = (rawInput || "").trim();
@@ -193,6 +291,12 @@ export function validatePublicAuditUrl(rawInput: string): UrlValidationResult {
     if (isBlockedIpv6(hostname)) {
       return { ok: false, reason: `Blocked private or loopback IPv6 address "${hostname}".` };
     }
+    if (!ALLOWED_PORTS.has(parsed.port)) {
+      return {
+        ok: false,
+        reason: `Blocked non-standard port "${parsed.port}". Only ports 80 and 443 are allowed.`,
+      };
+    }
     return { ok: true, url: parsed, origin: parsed.origin };
   }
 
@@ -201,12 +305,25 @@ export function validatePublicAuditUrl(rawInput: string): UrlValidationResult {
     if (isBlockedIpv4(hostname)) {
       return { ok: false, reason: `Blocked private, loopback, or metadata IPv4 address "${hostname}".` };
     }
+    if (!ALLOWED_PORTS.has(parsed.port)) {
+      return {
+        ok: false,
+        reason: `Blocked non-standard port "${parsed.port}". Only ports 80 and 443 are allowed.`,
+      };
+    }
     return { ok: true, url: parsed, origin: parsed.origin };
   }
 
   // Require at least one dot for public DNS names
   if (!hostname.includes(".")) {
     return { ok: false, reason: `Hostname "${hostname}" is not a valid public domain.` };
+  }
+
+  if (!ALLOWED_PORTS.has(parsed.port)) {
+    return {
+      ok: false,
+      reason: `Blocked non-standard port "${parsed.port}". Only ports 80 and 443 are allowed.`,
+    };
   }
 
   return { ok: true, url: parsed, origin: parsed.origin };
@@ -287,7 +404,7 @@ async function readBoundedBody(response: Response, maxBytes: number): Promise<st
 
 /**
  * Performs an SSRF-guarded HTTP GET with DNS rebinding verification, manual
- * redirect validation, timeout, and bounded response buffer.
+ * redirect validation, cumulative timeout budget, and bounded response buffer.
  */
 export async function safeFetchText(
   targetUrl: string,
@@ -299,6 +416,7 @@ export async function safeFetchText(
 
   let currentUrlStr = targetUrl;
   const startTime = Date.now();
+  const deadline = startTime + timeoutMs;
 
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     const validation = validatePublicAuditUrl(currentUrlStr);
@@ -308,7 +426,7 @@ export async function safeFetchText(
         status: null,
         text: "",
         finalUrl: currentUrlStr,
-        ttfbMs: Date.now() - startTime,
+        ttfbMs: Math.max(1, Date.now() - startTime),
         error: validation.reason || "Blocked URL",
       };
     }
@@ -325,14 +443,26 @@ export async function safeFetchText(
           status: null,
           text: "",
           finalUrl: validation.url.href,
-          ttfbMs: Date.now() - startTime,
+          ttfbMs: Math.max(1, Date.now() - startTime),
           error: dnsCheck.reason || "Blocked by DNS guard",
         };
       }
     }
 
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      return {
+        ok: false,
+        status: null,
+        text: "",
+        finalUrl: validation.url.href,
+        ttfbMs: Math.max(1, Date.now() - startTime),
+        error: `Request timed out after ${timeoutMs}ms`,
+      };
+    }
+
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), remainingMs);
 
     try {
       const res = await fetchFn(validation.url.href, {
@@ -360,7 +490,19 @@ export async function safeFetchText(
             error: `Redirect (${res.status}) missing Location header.`,
           };
         }
-        const nextUrl = new URL(locationHeader, validation.url.href).href;
+        let nextUrl: string;
+        try {
+          nextUrl = new URL(locationHeader, validation.url.href).href;
+        } catch {
+          return {
+            ok: false,
+            status: res.status,
+            text: "",
+            finalUrl: validation.url.href,
+            ttfbMs,
+            error: "Blocked malformed redirect Location header.",
+          };
+        }
         const nextValidation = validatePublicAuditUrl(nextUrl);
         if (!nextValidation.ok) {
           return {
@@ -410,10 +552,15 @@ export async function safeFetchText(
   };
 }
 
+function isLikelyHtmlFallback(text: string): boolean {
+  return /^\s*(?:<!doctype\s+html|<html\b|<head\b|<body\b)/i.test(text);
+}
+
 /**
  * Probes a live external URL (/, /robots.txt, /llms.txt, /llms-full.txt) and runs
  * the deterministic 7-Layer & 4-Engine Titan readiness audit.
- * Never fabricates scores when blocked by a WAF (HTTP 403/429) or network failure.
+ * Never fabricates scores when blocked by a WAF (HTTP 403/429) or network failure,
+ * and rejects SPA HTML catch-all responses masquerading as /robots.txt or /llms.txt.
  */
 export async function probeAndAuditLiveUrl(
   targetUrl: string,
@@ -433,9 +580,19 @@ export async function probeAndAuditLiveUrl(
   ]);
 
   const wafBlocked = pageRes.status === 403 || pageRes.status === 429 || pageRes.status === 503;
-  const hasRobotsTxt = robotsRes.ok && robotsRes.text.trim().length > 0;
-  const hasLlmsTxt = llmsRes.ok && llmsRes.text.trim().length > 10;
-  const hasLlmsFullTxt = llmsFullRes.ok && llmsFullRes.text.trim().length > 10;
+  const hasRobotsTxt =
+    robotsRes.ok &&
+    robotsRes.text.trim().length > 0 &&
+    !isLikelyHtmlFallback(robotsRes.text) &&
+    /(?:user-agent|disallow|allow|sitemap):/i.test(robotsRes.text);
+  const hasLlmsTxt =
+    llmsRes.ok &&
+    llmsRes.text.trim().length > 10 &&
+    !isLikelyHtmlFallback(llmsRes.text);
+  const hasLlmsFullTxt =
+    llmsFullRes.ok &&
+    llmsFullRes.text.trim().length > 10 &&
+    !isLikelyHtmlFallback(llmsFullRes.text);
 
   const audit = auditHtmlAgainstTitanStandard({
     url: pageRes.finalUrl || validation.url.href,
@@ -444,25 +601,11 @@ export async function probeAndAuditLiveUrl(
     hasLlmsTxt,
     hasLlmsFullTxt,
     ttfbMs: pageRes.ttfbMs,
+    reachable: pageRes.ok,
+    httpStatus: pageRes.status,
+    wafBlocked,
+    probeError: pageRes.error,
   });
-
-  if (!pageRes.ok) {
-    const statusLabel = pageRes.status
-      ? `HTTP ${pageRes.status}${wafBlocked ? " (WAF / Bot Challenge Block)" : ""}`
-      : pageRes.error || "Network Unreachable";
-    const wafMessage = `[web-ag-edge-vitals] Live probe failed with ${statusLabel} — AI search crawlers (PerplexityBot, OAI-SearchBot, BraveBot, Googlebot) cannot extract this page.`;
-
-    audit.layers[0].passed = false;
-    audit.layers[0].score = Math.min(audit.layers[0].score, 20);
-    audit.layers[0].remediation = [wafMessage, ...audit.layers[0].remediation];
-    audit.nextSingleLayerToExecute = {
-      layerNumber: 1,
-      skillId: "web-ag-edge-vitals",
-      name: audit.layers[0].name,
-      mode: "REMEDIATE",
-      actions: audit.layers[0].remediation,
-    };
-  }
 
   return {
     probe: {

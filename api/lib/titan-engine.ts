@@ -32,6 +32,10 @@ export interface TitanAuditInput {
   hasLlmsTxt?: boolean;
   hasLlmsFullTxt?: boolean;
   ttfbMs?: number;
+  reachable?: boolean;
+  httpStatus?: number | null;
+  wafBlocked?: boolean;
+  probeError?: string;
 }
 
 export interface TitanAuditResult {
@@ -233,31 +237,96 @@ LLMs-Full: ${baseUrl}/llms-full.txt
 `;
 }
 
-function isBotDisallowed(robotsTxt: string, botName: string): boolean {
+interface RobotsGroup {
+  agents: string[];
+  rules: { type: "allow" | "disallow"; path: string }[];
+}
+
+function parseRobotsGroups(robotsTxt: string): RobotsGroup[] {
+  const groups: RobotsGroup[] = [];
+  let currentGroup: RobotsGroup | null = null;
+  let seenRuleInCurrentGroup = false;
+
+  for (const rawLine of robotsTxt.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line) continue;
+
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+
+    const directive = line.slice(0, colonIdx).trim().toLowerCase();
+    const value = line.slice(colonIdx + 1).trim();
+
+    if (directive === "user-agent") {
+      if (!currentGroup || seenRuleInCurrentGroup) {
+        currentGroup = { agents: [], rules: [] };
+        groups.push(currentGroup);
+        seenRuleInCurrentGroup = false;
+      }
+      if (value) {
+        currentGroup.agents.push(value.toLowerCase());
+      }
+    } else if (directive === "allow" || directive === "disallow") {
+      if (!currentGroup) continue;
+      seenRuleInCurrentGroup = true;
+      currentGroup.rules.push({ type: directive, path: value });
+    }
+  }
+
+  return groups;
+}
+
+/**
+ * Evaluates whether a given bot user-agent is disallowed from crawling "/"
+ * according to RFC 9309 (supports grouped User-agent headers and "*" fallback).
+ */
+export function isBotDisallowed(robotsTxt: string, botName: string): boolean {
   if (!robotsTxt) return false;
-  const regex = new RegExp(`User-agent:\\s*${botName}[\\s\\S]*?(?=User-agent:|$)`, "i");
-  const match = robotsTxt.match(regex);
-  if (!match) return false;
-  return /Disallow:\s*\/\s*$/m.test(match[0]);
+  const groups = parseRobotsGroups(robotsTxt);
+  const target = botName.toLowerCase();
+
+  const specificGroups = groups.filter((g) => g.agents.includes(target));
+  const applicableGroups =
+    specificGroups.length > 0
+      ? specificGroups
+      : groups.filter((g) => g.agents.includes("*"));
+
+  if (applicableGroups.length === 0) return false;
+
+  const rules = applicableGroups.flatMap((g) => g.rules);
+  const hasRootAllow = rules.some((r) => r.type === "allow" && r.path === "/");
+  if (hasRootAllow) return false;
+
+  return rules.some((r) => r.type === "disallow" && r.path === "/");
 }
 
 export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAuditResult {
-  const html = input.html || "";
+  const reachable = input.reachable ?? true;
+  const wafBlocked = input.wafBlocked ?? false;
+  const html = reachable ? input.html || "" : "";
   const robots = input.robotsTxt || "";
   const ttfbMs = input.ttfbMs ?? 80;
   const hasLlmsTxt = input.hasLlmsTxt ?? true;
   const hasLlmsFullTxt = input.hasLlmsFullTxt ?? true;
 
   // --- Layer 1: Edge Speed, 12-Bot AI Allowlist & Parameter Crawl Fence ---
-  const nonEmptyRoot = !/<div\s+id=["']root["']\s*><\/div>/i.test(html) && html.length > 200;
-  const oaiAllowed = !isBotDisallowed(robots, "OAI-SearchBot") && !isBotDisallowed(robots, "GPTBot");
-  const perplexityAllowed = !isBotDisallowed(robots, "PerplexityBot");
+  const nonEmptyRoot =
+    reachable && !/<div\s+id=["']root["']\s*>\s*<\/div>/i.test(html) && html.length > 200;
+  const oaiAllowed =
+    reachable &&
+    !wafBlocked &&
+    !isBotDisallowed(robots, "OAI-SearchBot") &&
+    !isBotDisallowed(robots, "GPTBot");
+  const perplexityAllowed =
+    reachable && !wafBlocked && !isBotDisallowed(robots, "PerplexityBot");
   const claudeBraveAllowed =
+    reachable &&
+    !wafBlocked &&
     !isBotDisallowed(robots, "Claude-SearchBot") &&
     !isBotDisallowed(robots, "ClaudeBot") &&
     !isBotDisallowed(robots, "BraveBot");
   const hasParamFence = /Disallow:\s*\/\*\?q=\*/i.test(robots);
-  const fastTtfb = ttfbMs <= 300;
+  const fastTtfb = reachable && ttfbMs <= 300;
 
   const l1Checks = [
     { label: "Pre-rendered non-empty #root HTML shell (0.00 CLS)", passed: nonEmptyRoot },
@@ -282,8 +351,13 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   ];
 
   // --- Layer 3: Programmatic Matrix & IA Link Mesh ---
-  const hasCanonical = /<link[^>]+rel=["']canonical["'][^>]+href=["']https?:\/\/[^"']+["']/i.test(html);
-  const hasTitleAndDesc = /<title>[^<]{5,}<\/title>/i.test(html) && /<meta[^>]+name=["']description["']/i.test(html);
+  const hasCanonical =
+    /<link\b(?=[^>]*\brel=["']canonical["'])(?=[^>]*\bhref=["']https?:\/\/[^"']+["'])[^>]*>/i.test(
+      html,
+    );
+  const hasTitleAndDesc =
+    /<title(?:\s[^>]*)?>[^<]{5,}<\/title>/i.test(html) &&
+    /<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i.test(html);
   const hasOrgOrLocalSchema = /"@type"\s*:\s*"(Organization|LocalBusiness|WebSite)"/i.test(html);
 
   const l3Checks = [
@@ -304,8 +378,8 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
 
   // --- Layer 5: Top-of-DOM Infobox, H3 Question Fan-Out & llms.txt ---
   const hasInfoboxTable = /<table[^>]+class=["'][^"']*entity-infobox[^"']*["']/i.test(html);
-  const hasQuestionH3s = /<h3>[^<]*\?<\/h3>/i.test(html);
-  const hasH2Pillars = /<h2>[^<]+<\/h2>/i.test(html);
+  const hasQuestionH3s = /<h3(?:\s[^>]*)?>[\s\S]*?\?\s*(?:<[^>]+>\s*)*<\/h3>/i.test(html);
+  const hasH2Pillars = /<h2(?:\s[^>]*)?>[\s\S]+?<\/h2>/i.test(html);
 
   const l5Checks = [
     { label: "Wikipedia Top-of-DOM <table class='entity-infobox'> in HTML", passed: hasInfoboxTable },
@@ -328,11 +402,16 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const allLayers = [l1Checks, l2Checks, l3Checks, l4Checks, l5Checks, l6Checks];
   const prelimPassCount = allLayers.flat().filter((c) => c.passed).length;
   const prelimTotal = allLayers.flat().length;
-  const sentinelHealthy = prelimPassCount / prelimTotal >= 0.85;
+  const sentinelHealthy = reachable && prelimPassCount / prelimTotal >= 0.85;
+  const allEnginesUnblocked =
+    reachable && !wafBlocked && oaiAllowed && perplexityAllowed && claudeBraveAllowed;
 
   const l7Checks = [
     { label: "Cross-layer readiness threshold >= 85%", passed: sentinelHealthy },
-    { label: "All 4 retrieval engines (Google, Perplexity, OpenAI, Brave/Claude) unblocked", passed: oaiAllowed && perplexityAllowed && claudeBraveAllowed },
+    {
+      label: "All 4 retrieval engines (Google, Perplexity, OpenAI, Brave/Claude) unblocked",
+      passed: allEnginesUnblocked,
+    },
   ];
 
   const rawCheckGroups = [l1Checks, l2Checks, l3Checks, l4Checks, l5Checks, l6Checks, l7Checks];
@@ -341,7 +420,7 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     const checks = rawCheckGroups[idx];
     const passedCount = checks.filter((c) => c.passed).length;
     const score = Math.round((passedCount / checks.length) * 100);
-    const passed = score >= 80;
+    const passed = score >= 80 && (idx !== 0 || reachable);
     const remediation = checks
       .filter((c) => !c.passed)
       .map((c) => `[${spec.skillId}] Fix failed check: ${c.label}`);
@@ -357,6 +436,16 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     };
   });
 
+  if (!reachable) {
+    const statusLabel = input.httpStatus
+      ? `HTTP ${input.httpStatus}${wafBlocked ? " (WAF / Bot Challenge Block)" : ""}`
+      : input.probeError || "Network Unreachable";
+    const wafMessage = `[web-ag-edge-vitals] Live probe failed with ${statusLabel} — AI search crawlers (PerplexityBot, OAI-SearchBot, BraveBot, Googlebot) cannot extract this page.`;
+    layers[0].passed = false;
+    layers[0].score = Math.min(layers[0].score, 20);
+    layers[0].remediation = [wafMessage, ...layers[0].remediation];
+  }
+
   const overallScore = Math.round(
     layers.reduce((acc, l) => acc + l.score, 0) / layers.length,
   );
@@ -370,7 +459,9 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const l6 = layers[5].score;
 
   const engineScores = {
-    google: Math.round(l1 * 0.25 + l2 * 0.25 + l3 * 0.25 + l5 * 0.25),
+    google: reachable
+      ? Math.round(l1 * 0.25 + l2 * 0.25 + l3 * 0.25 + l5 * 0.25)
+      : Math.min(15, Math.round(l1 * 0.25)),
     perplexity: perplexityAllowed
       ? Math.round(l1 * 0.3 + l4 * 0.25 + l5 * 0.35 + l6 * 0.1)
       : Math.min(25, Math.round(l5 * 0.25)),

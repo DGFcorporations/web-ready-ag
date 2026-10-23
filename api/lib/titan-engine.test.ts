@@ -4,6 +4,7 @@ import {
   TARGET_ENGINES,
   auditHtmlAgainstTitanStandard,
   buildCanonicalRobotsTxt,
+  isBotDisallowed,
 } from "./titan-engine";
 import { injectMeta, resolveRouteMeta } from "./html-inject";
 
@@ -38,6 +39,66 @@ describe("Titan 7-Layer & 4-Engine Dominance Engine", () => {
     expect(robots).toContain("User-agent: BraveBot");
     expect(robots).toContain("Disallow: /*?q=*");
     expect(robots).toContain("Disallow: /*?filter=*");
+  });
+
+  it("isBotDisallowed correctly parses RFC 9309 grouped User-agent blocks and wildcard (*) fallbacks", () => {
+    const wildcardDisallow = "User-agent: *\nDisallow: /\n";
+    expect(isBotDisallowed(wildcardDisallow, "OAI-SearchBot")).toBe(true);
+    expect(isBotDisallowed(wildcardDisallow, "PerplexityBot")).toBe(true);
+    expect(isBotDisallowed(wildcardDisallow, "BraveBot")).toBe(true);
+
+    const wildcardWithOverride =
+      "User-agent: *\nDisallow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n";
+    expect(isBotDisallowed(wildcardWithOverride, "OAI-SearchBot")).toBe(false);
+    expect(isBotDisallowed(wildcardWithOverride, "PerplexityBot")).toBe(true);
+
+    const groupedAgentsBlock = [
+      "User-agent: GPTBot",
+      "User-agent: OAI-SearchBot",
+      "User-agent: PerplexityBot",
+      "Disallow: /",
+    ].join("\n");
+    expect(isBotDisallowed(groupedAgentsBlock, "GPTBot")).toBe(true);
+    expect(isBotDisallowed(groupedAgentsBlock, "OAI-SearchBot")).toBe(true);
+    expect(isBotDisallowed(groupedAgentsBlock, "PerplexityBot")).toBe(true);
+    expect(isBotDisallowed(groupedAgentsBlock, "Googlebot")).toBe(false);
+  });
+
+  it("recognizes H2 pillars, Question H3 fan-out headers, and canonical links with HTML attributes", () => {
+    const htmlWithAttributes = `<!doctype html>
+<html lang="en">
+<head>
+  <title data-rh="true">Attribute Rich Titan Page</title>
+  <meta content="Detailed factual description of the page" name="description" />
+  <link href="https://example.com/services" rel="canonical" />
+  <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[{"@type":"Organization","headline":"Factual 1-sentence definition of the organization for AI grounding.","sameAs":["http://www.wikidata.org/entity/Q180711"],"citation":["https://www.w3.org/TR/json-ld11/"]}]}
+  </script>
+</head>
+<body>
+  <div id="root">
+    <main class="ag-prerender-shell">
+      <p class="ag-summary-lead">Direct un-hedged summary lead.</p>
+      <table class="entity-infobox"><tr><th>Target</th><td>Google, Perplexity, OpenAI, Brave</td></tr></table>
+      <h2 class="text-2xl font-bold" id="overview">Core Service Pillars</h2>
+      <h3 class="text-lg font-semibold" id="q1"><span>What is Answer Engine Optimization?</span></h3>
+    </main>
+  </div>
+</body>
+</html>`;
+
+    const audit = auditHtmlAgainstTitanStandard({
+      url: "https://example.com/services",
+      html: htmlWithAttributes,
+      robotsTxt: buildCanonicalRobotsTxt("https://example.com"),
+      hasLlmsTxt: true,
+      hasLlmsFullTxt: true,
+      ttfbMs: 50,
+    });
+
+    expect(audit.layers[2].passed).toBe(true); // Layer 3 canonical + title/desc
+    expect(audit.layers[4].passed).toBe(true); // Layer 5 H2 + Question H3 + Infobox
+    expect(audit.overallScore).toBe(100);
   });
 
   it("penalizes an Amazon-style walled-garden page with empty #root and blocked AI bots", () => {

@@ -187,12 +187,12 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
     setRawHasLlmsTxt(true);
   };
 
-  const handleGenerateArtifacts = () => {
+  const buildCurrentBundle = (): TitanArtifactBundle => {
     const services = servicesInput
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const bundle = generateTitanLayerArtifacts({
+    return generateTitanLayerArtifacts({
       domain: domainInput,
       brandName: brandInput,
       niche: nicheInput,
@@ -201,14 +201,19 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
       services,
       startingPrice: priceInput,
     });
-    setArtifactBundle(bundle);
+  };
+
+  const handleGenerateArtifacts = () => {
+    setArtifactBundle(buildCurrentBundle());
   };
 
   const handleAuditGeneratedBundle = () => {
+    const freshBundle = buildCurrentBundle();
+    setArtifactBundle(freshBundle);
     const previewAudit = auditHtmlAgainstTitanStandard({
-      url: artifactBundle.normalizedDomain,
-      html: artifactBundle.fullHtmlPreview,
-      robotsTxt: artifactBundle.robotsTxt,
+      url: freshBundle.normalizedDomain,
+      html: freshBundle.fullHtmlPreview,
+      robotsTxt: freshBundle.robotsTxt,
       hasLlmsTxt: true,
       hasLlmsFullTxt: true,
       ttfbMs: 42,
@@ -618,7 +623,11 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
                     <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-3">
                       <div className="font-mono text-[10px] text-[#8A8A8A] uppercase">WAF Status</div>
                       <div className="font-mono text-[15px] text-white font-bold mt-1">
-                        {probeTelemetry.wafBlocked ? "BLOCKED (403)" : "OPEN"}
+                        {probeTelemetry.wafBlocked
+                          ? `BLOCKED (${probeTelemetry.httpStatus ?? 403})`
+                          : probeTelemetry.httpStatus === null
+                            ? "UNREACHABLE"
+                            : "OPEN"}
                       </div>
                     </div>
                     <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-3">

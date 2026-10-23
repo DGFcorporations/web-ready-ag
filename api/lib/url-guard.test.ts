@@ -51,7 +51,7 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
       }
     });
 
-    it("rejects RFC1918 private networks, Tailscale CGNAT, and link-local cloud metadata IPs", () => {
+    it("rejects RFC1918 private networks, Tailscale CGNAT, link-local cloud metadata, and IPv6 transition ranges", () => {
       for (const priv of [
         "http://10.0.0.1/admin",
         "http://10.255.255.255",
@@ -63,6 +63,12 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
         "http://169.254.169.254/latest/meta-data/",
         "http://[::ffff:169.254.169.254]/latest/meta-data/",
         "http://[::ffff:127.0.0.1]/",
+        "http://[::127.0.0.1]/", // IPv4-compatible IPv6 normalized to [::7f00:1]
+        "http://[::169.254.169.254]/", // IPv4-compatible IPv6 normalized to [::a9fe:a9fe]
+        "http://[64:ff9b::169.254.169.254]/", // NAT64 embedding metadata IP
+        "http://[2002:7f00:1::]/", // 6to4 embedding 127.0.0.1
+        "http://[2001::1]/", // Teredo
+        "http://[100::1]/", // Discard-only prefix
         "http://[fe80::1]/",
         "http://[fd00::1]/",
       ]) {
@@ -71,10 +77,27 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
       }
     });
 
-    it("allows public IPv4 addresses outside private ranges (e.g., 172.15.0.1, 172.32.0.1)", () => {
+    it("rejects non-standard TCP ports to prevent cross-host port scanning while allowing 80 and 443", () => {
+      for (const blockedPort of [
+        "http://example.com:6379/",
+        "http://example.com:22/",
+        "https://example.com:5432/",
+        "http://93.184.216.34:8080/",
+      ]) {
+        const res = validatePublicAuditUrl(blockedPort);
+        expect(res.ok).toBe(false);
+        expect(res.reason).toMatch(/port/i);
+      }
+
+      expect(validatePublicAuditUrl("http://example.com:80/").ok).toBe(true);
+      expect(validatePublicAuditUrl("https://example.com:443/").ok).toBe(true);
+    });
+
+    it("allows public IPv4 and IPv6 addresses outside private ranges", () => {
       expect(validatePublicAuditUrl("https://172.15.0.1").ok).toBe(true);
       expect(validatePublicAuditUrl("https://172.32.0.1").ok).toBe(true);
       expect(validatePublicAuditUrl("https://93.184.216.34").ok).toBe(true);
+      expect(validatePublicAuditUrl("https://[2606:4700:4700::1111]/").ok).toBe(true);
     });
 
     it("rejects internal/reserved hostnames, trailing-dot bypasses, rebinding domains, and embedded credentials", () => {
@@ -98,7 +121,7 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
   });
 
   describe("safeFetchText", () => {
-    it("blocks SSRF redirect hops that point to private or metadata IPs", async () => {
+    it("blocks SSRF redirect hops that point to private or metadata IPs or disallowed schemes", async () => {
       const mockFetch: typeof fetch = async (input) => {
         const urlStr = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         if (urlStr === "https://evil-redirect.example.com/") {
@@ -118,17 +141,41 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
       expect(res.error).toMatch(/redirect|blocked|private|metadata/i);
     });
 
-    it("blocks DNS rebinding when a public domain resolves to a private or loopback IP", async () => {
-      const mockFetch: typeof fetch = async () =>
-        new Response("internal-secret", { status: 200 });
+    it("aborts redirect loops exceeding MAX_REDIRECT_HOPS (3)", async () => {
+      let hopCount = 0;
+      const mockFetch: typeof fetch = async () => {
+        hopCount += 1;
+        return new Response(null, {
+          status: 302,
+          headers: { location: `https://loop.example.com/step-${hopCount}` },
+        });
+      };
 
-      const res = await safeFetchText("https://rebind-attack.example.com/", {
+      const res = await safeFetchText("https://loop.example.com/start", {
         fetchImpl: mockFetch,
-        dnsLookup: async () => [{ address: "169.254.169.254", family: 4 }],
       });
 
       expect(res.ok).toBe(false);
-      expect(res.error).toMatch(/DNS|resolved|private|metadata/i);
+      expect(res.error).toMatch(/Exceeded maximum redirect hops/i);
+    });
+
+    it("blocks DNS rebinding when a public domain resolves to a private or loopback IPv4 or IPv6", async () => {
+      const mockFetch: typeof fetch = async () =>
+        new Response("internal-secret", { status: 200 });
+
+      const resV4 = await safeFetchText("https://rebind-attack.example.com/", {
+        fetchImpl: mockFetch,
+        dnsLookup: async () => [{ address: "169.254.169.254", family: 4 }],
+      });
+      expect(resV4.ok).toBe(false);
+      expect(resV4.error).toMatch(/DNS|resolved|private|metadata/i);
+
+      const resV6 = await safeFetchText("https://rebind-ipv6.example.com/", {
+        fetchImpl: mockFetch,
+        dnsLookup: async () => [{ address: "::ffff:127.0.0.1", family: 6 }],
+      });
+      expect(resV6.ok).toBe(false);
+      expect(resV6.error).toMatch(/DNS|resolved|private|loopback/i);
     });
 
     it("truncates response payloads exceeding maxBytes without crashing", async () => {
@@ -176,7 +223,22 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
       expect(outcome.audit.layers.every((l) => l.passed)).toBe(true);
     });
 
-    it("reports HTTP 403 WAF blocks (Mayo Clinic pattern) as a Layer 1 failure without fabricating scores", async () => {
+    it("rejects SPA HTML catch-all responses masquerading as 200 OK on /robots.txt and /llms.txt", async () => {
+      const spaFallback = `<!doctype html><html><head><title>SPA</title></head><body><div id="root"></div></body></html>`;
+      const mockFetch: typeof fetch = async () =>
+        new Response(spaFallback, { status: 200 });
+
+      const outcome = await probeAndAuditLiveUrl("https://catchall-spa.example.com/", {
+        fetchImpl: mockFetch,
+      });
+
+      expect(outcome.probe.reachable).toBe(true);
+      expect(outcome.probe.hasRobotsTxt).toBe(false);
+      expect(outcome.probe.hasLlmsTxt).toBe(false);
+      expect(outcome.probe.hasLlmsFullTxt).toBe(false);
+    });
+
+    it("reports HTTP 403 WAF blocks (Mayo Clinic pattern) as a Layer 1 & Layer 7 failure with consistent scores", async () => {
       const mockFetch: typeof fetch = async () =>
         new Response("Access Denied - Akamai Ghost", { status: 403 });
 
@@ -189,6 +251,12 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
       expect(outcome.probe.wafBlocked).toBe(true);
       expect(outcome.audit.layers[0].passed).toBe(false);
       expect(outcome.audit.layers[0].remediation[0]).toMatch(/403|WAF/i);
+      expect(outcome.audit.layers[6].passed).toBe(false);
+      expect(outcome.audit.layers[6].score).toBe(0);
+      const expectedAverage = Math.round(
+        outcome.audit.layers.reduce((acc, l) => acc + l.score, 0) / outcome.audit.layers.length,
+      );
+      expect(outcome.audit.overallScore).toBe(expectedAverage);
       expect(outcome.audit.nextSingleLayerToExecute.layerNumber).toBe(1);
     });
   });

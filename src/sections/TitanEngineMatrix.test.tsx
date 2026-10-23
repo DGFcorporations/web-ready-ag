@@ -96,5 +96,31 @@ describe("TitanEngineMatrix 7-Layer & 4-Engine Workbench UI", () => {
     expect(
       screen.getAllByText(/SENTINEL_LOOP/i).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("https://tampalaserclinic.example.com"),
+    ).toBeDefined();
+  });
+
+  it("regenerates from current form inputs when clicking Audit Generated Bundle in Scorecard directly", () => {
+    renderWorkbench();
+
+    const generatorTab = screen.getByRole("button", {
+      name: /Layer 1–7 Code Generator/i,
+    });
+    fireEvent.click(generatorTab);
+
+    const domainInput = screen.getByLabelText(/Target Domain/i);
+    fireEvent.change(domainInput, {
+      target: { value: "https://directaudit.example.com" },
+    });
+
+    const auditPreviewBtn = screen.getByRole("button", {
+      name: /Audit Generated Bundle in Scorecard/i,
+    });
+    fireEvent.click(auditPreviewBtn);
+
+    expect(
+      screen.getByText("https://directaudit.example.com"),
+    ).toBeDefined();
   });
 });
