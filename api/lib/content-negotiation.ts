@@ -36,8 +36,11 @@ export function chooseRepresentation(accept: string): Representation {
     }
   }
 
-  if (qMarkdown > 0 && qMarkdown >= qJson && qMarkdown >= qHtml) return "markdown";
-  if (qJson > 0 && qJson > qHtml) return "json";
+  // Prioritize HTML on ties:
+  // Markdown is returned ONLY when its q-factor strictly exceeds HTML and is >= JSON.
+  if (qMarkdown > 0 && qMarkdown > qHtml && qMarkdown >= qJson) return "markdown";
+  // JSON is returned ONLY when its q-factor strictly exceeds HTML and is > Markdown.
+  if (qJson > 0 && qJson > qHtml && qJson > qMarkdown) return "json";
   return "html";
 }
 
@@ -47,25 +50,33 @@ export interface NegotiationDeps {
 }
 
 function appendVaryAccept(headers: Headers): void {
-  const existing = headers.get("Vary");
-  if (!existing) {
-    headers.set("Vary", "Accept");
-    return;
+  try {
+    const existing = headers.get("Vary");
+    if (!existing) {
+      headers.set("Vary", "Accept");
+      return;
+    }
+    const tokens = existing.split(",").map((t) => t.trim().toLowerCase());
+    if (tokens.includes("accept") || tokens.includes("*")) return;
+    headers.set("Vary", `${existing}, Accept`);
+  } catch {
+    // ignore immutable headers
   }
-  const tokens = existing.split(",").map((t) => t.trim().toLowerCase());
-  if (tokens.includes("accept") || tokens.includes("*")) return;
-  headers.set("Vary", `${existing}, Accept`);
 }
 
 function applyVaryAccept(c: { header: (name: string, value: string) => void; res: { headers: Headers } }): void {
-  const existing = c.res.headers.get("Vary");
-  if (!existing) {
-    c.header("Vary", "Accept");
-    return;
+  try {
+    const existing = c.res.headers.get("Vary");
+    if (!existing) {
+      c.header("Vary", "Accept");
+      return;
+    }
+    const tokens = existing.split(",").map((t) => t.trim().toLowerCase());
+    if (tokens.includes("accept") || tokens.includes("*")) return;
+    c.header("Vary", `${existing}, Accept`);
+  } catch {
+    // ignore immutable headers
   }
-  const tokens = existing.split(",").map((t) => t.trim().toLowerCase());
-  if (tokens.includes("accept") || tokens.includes("*")) return;
-  c.header("Vary", `${existing}, Accept`);
 }
 
 /**

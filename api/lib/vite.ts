@@ -5,7 +5,9 @@ import { injectMeta, resolveRouteMeta } from "./html-inject";
 type App = Hono<{ Bindings: HttpBindings & { ASSETS?: { fetch: (req: Request) => Promise<Response> } } }>;
 
 export async function serveStaticFiles(app: App) {
-  const isCloudflare = typeof (globalThis as any).caches !== "undefined" && !(typeof process !== "undefined" && process.versions?.node);
+  const isCloudflare =
+    typeof (globalThis as unknown as { caches?: unknown }).caches !== "undefined" &&
+    !(typeof process !== "undefined" && process.versions?.node);
 
   if (!isCloudflare) {
     // Node.js only: dynamic import to avoid bundling Node-only deps on Cloudflare
@@ -15,7 +17,7 @@ export async function serveStaticFiles(app: App) {
 
   app.notFound(async (c) => {
     const accept = c.req.header("accept") ?? "";
-    if (!accept.includes("text/html")) {
+    if (accept && !accept.includes("text/html") && !accept.includes("*/*")) {
       return c.json({ error: "Not Found" }, 404);
     }
 

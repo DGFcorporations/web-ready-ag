@@ -40,6 +40,22 @@ describe("chooseRepresentation", () => {
     expect(chooseRepresentation("text/html;q=0.9, application/json;q=0.8")).toBe("html");
   });
 
+  it("prioritizes text/html over text/markdown when HTML has equal or higher q-factor", () => {
+    expect(chooseRepresentation("text/html, text/markdown")).toBe("html");
+    expect(chooseRepresentation("text/markdown, text/html")).toBe("html");
+    expect(chooseRepresentation("text/html;q=0.9, text/markdown;q=0.8")).toBe("html");
+  });
+
+  it("prioritizes text/html when HTML, markdown, and JSON all tie", () => {
+    expect(chooseRepresentation("text/html, text/markdown, application/json")).toBe("html");
+    expect(chooseRepresentation("text/markdown;q=0.8, application/json;q=0.8, text/html;q=0.8")).toBe("html");
+  });
+
+  it("serves markdown when text/markdown has strictly higher q-factor than HTML", () => {
+    expect(chooseRepresentation("text/markdown, text/html;q=0.5")).toBe("markdown");
+    expect(chooseRepresentation("text/markdown;q=0.9, text/html;q=0.8")).toBe("markdown");
+  });
+
   it("serves JSON when application/json has strictly higher q-factor than HTML", () => {
     expect(chooseRepresentation("application/json, text/html;q=0.5")).toBe("json");
     expect(chooseRepresentation("application/llm+json, text/html;q=0.1")).toBe("json");
