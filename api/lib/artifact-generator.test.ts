@@ -4,6 +4,7 @@ import {
   type ArtifactGeneratorInput,
 } from "./artifact-generator";
 import { auditHtmlAgainstTitanStandard } from "./titan-engine";
+import { lintLlmsTxt } from "./llms-txt";
 
 describe("Layer 1-7 Titan Code Artifact Generator (artifact-generator)", () => {
   const sampleInput: ArtifactGeneratorInput = {
@@ -94,5 +95,36 @@ describe("Layer 1-7 Titan Code Artifact Generator (artifact-generator)", () => {
     expect(malicious.fullHtmlPreview).not.toContain('<script>alert("xss")</script>');
     expect(malicious.fullHtmlPreview).not.toContain("<img src=x onerror=alert(1)>");
     expect(malicious.infoboxAndFanOutHtml).toContain("&lt;script&gt;");
+  });
+  it("emits standard [label](url) Markdown links in llmsTxt (Lighthouse llms-txt audit)", () => {
+    const bundle = generateTitanLayerArtifacts(sampleInput);
+    expect(lintLlmsTxt(bundle.llmsTxt)).toEqual([]);
+    expect(bundle.llmsTxt).toContain(
+      "[Peptide Therapy](https://apexmedspa.example.com/services/peptide-therapy/naples)",
+    );
+    expect(bundle.llmsTxt).not.toMatch(/— https?:\/\//);
+  });
+
+  it("adds dateModified to the WebPage node and honors an explicit value", () => {
+    const explicit = generateTitanLayerArtifacts({ ...sampleInput, dateModified: "2026-01-02" });
+    const graph = JSON.parse(explicit.jsonLdGraph)["@graph"] as Record<string, unknown>[];
+    const page = graph.find((n) => n["@type"] === "WebPage");
+    expect(page?.dateModified).toBe("2026-01-02");
+
+    const auto = JSON.parse(generateTitanLayerArtifacts(sampleInput).jsonLdGraph)["@graph"] as Record<string, unknown>[];
+    expect(String(auto.find((n) => n["@type"] === "WebPage")?.dateModified)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("keeps a perfect 100/100 on the full 7-layer audit including the new guards", () => {
+    const bundle = generateTitanLayerArtifacts(sampleInput);
+    const audit = auditHtmlAgainstTitanStandard({
+      url: bundle.normalizedDomain,
+      html: bundle.fullHtmlPreview,
+      robotsTxt: bundle.robotsTxt,
+      hasLlmsTxt: true,
+      hasLlmsFullTxt: true,
+      ttfbMs: 45,
+    });
+    expect(audit.overallScore).toBe(100);
   });
 });

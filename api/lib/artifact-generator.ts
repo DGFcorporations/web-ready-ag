@@ -5,6 +5,7 @@ import {
   buildUnifiedGraphJsonLd,
 } from "./json-ld";
 import { buildCanonicalRobotsTxt, WEB_AG_LAYERS } from "./titan-engine";
+import { mdLink } from "./llms-txt";
 
 export interface ArtifactGeneratorInput {
   domain: string;
@@ -14,6 +15,8 @@ export interface ArtifactGeneratorInput {
   state?: string;
   services?: string[];
   startingPrice?: string;
+  /** ISO date (YYYY-MM-DD…) for WebPage.dateModified; defaults to today (UTC). */
+  dateModified?: string;
 }
 
 export interface GeneratedLayerArtifact {
@@ -84,8 +87,9 @@ function buildLayer2JsonLdGraph(params: {
   cityWikidata: string;
   services: string[];
   startingPrice: string;
+  dateModified: string;
 }): string {
-  const { origin, brandName, niche, city, state, cityWikidata, services, startingPrice } = params;
+  const { origin, brandName, niche, city, state, cityWikidata, services, startingPrice, dateModified } = params;
   const definitionHeadline = `${brandName} is an Agent-Grade ${niche} provider serving ${city}, ${state} with verified pricing starting at ${startingPrice}.`;
 
   const graph = buildUnifiedGraphJsonLd([
@@ -144,6 +148,7 @@ function buildLayer2JsonLdGraph(params: {
       "@type": "WebPage",
       "@id": `${origin}/#webpage`,
       url: `${origin}/`,
+      dateModified,
       name: `${brandName} | ${niche} in ${city}, ${state}`,
       headline: definitionHeadline,
       description: definitionHeadline,
@@ -296,6 +301,9 @@ export function generateTitanLayerArtifacts(input: ArtifactGeneratorInput): Tita
 
   const cityWikidata = resolveCityWikidataUri(city);
   const robotsTxt = buildCanonicalRobotsTxt(origin);
+  const dateModified = /^\d{4}-\d{2}-\d{2}/.test(input.dateModified || "")
+    ? (input.dateModified as string)
+    : new Date().toISOString().split("T")[0];
   const jsonLdGraph = buildLayer2JsonLdGraph({
     origin,
     brandName,
@@ -305,6 +313,7 @@ export function generateTitanLayerArtifacts(input: ArtifactGeneratorInput): Tita
     cityWikidata,
     services,
     startingPrice,
+    dateModified,
   });
   const { code: programmaticRoutes, routeUrls } = buildLayer3ProgrammaticMatrix({
     origin,
@@ -347,7 +356,11 @@ export function generateTitanLayerArtifacts(input: ArtifactGeneratorInput): Tita
     `| Target Engines | Google, Perplexity, OpenAI, Brave Search (Claude) |`,
     ``,
     `## Verified Services`,
-    ...services.map((s) => `- **${s}** (${startingPrice}) — ${origin}/services/${toSlug(s)}/${toSlug(city)}`),
+    ...services.map((s) => `- ${mdLink(s, `${origin}/services/${toSlug(s)}/${toSlug(city)}`)}: ${startingPrice}`),
+    ``,
+    `## Key Pages`,
+    `- ${mdLink("Home", `${origin}/`)}: ${brandName} overview and entity summary`,
+    `- ${mdLink("Full knowledge base (llms-full.txt)", `${origin}/llms-full.txt`)}: Unabridged corpus`,
     ``,
   ].join("\n");
 

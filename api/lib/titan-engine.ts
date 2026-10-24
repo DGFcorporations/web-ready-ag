@@ -1,3 +1,13 @@
+import {
+  INFOBOX_BYTE_BUDGET,
+  findWikidataQids,
+  hasBlockingRobotsMeta,
+  hasContentNoSnippet,
+  hasPromptInjection,
+  hasScholarlyQidBinding,
+  infoboxByteOffset,
+} from "./titan-guards";
+
 export interface WebAgLayerSpec {
   layerNumber: number;
   skillId: string;
@@ -327,6 +337,7 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     !isBotDisallowed(robots, "BraveBot");
   const hasParamFence = /Disallow:\s*\/\*\?q=\*/i.test(robots);
   const fastTtfb = reachable && ttfbMs <= 300;
+  const indexable = reachable && !hasBlockingRobotsMeta(html) && !hasContentNoSnippet(html);
 
   const l1Checks = [
     { label: "Pre-rendered non-empty #root HTML shell (0.00 CLS)", passed: nonEmptyRoot },
@@ -335,19 +346,28 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     { label: "BraveBot & Claude-SearchBot allowed in robots.txt", passed: claudeBraveAllowed },
     { label: "Cleveland Clinic query-parameter crawl fence (Disallow: /*?q=*)", passed: hasParamFence },
     { label: "Sub-300ms edge TTFB latency", passed: fastTtfb },
+    {
+      label: "Page is indexable and snippet-eligible (no noindex / nosnippet / max-snippet:0)",
+      passed: indexable,
+    },
   ];
 
   // --- Layer 2: Wikidata Q-ID Graph & Definition-in-Headline ---
   const hasJsonLd = /application\/ld\+json/i.test(html);
-  const hasWikidataQid = /wikidata\.org\/entity\/Q\d+/i.test(html);
+  const hasWikidataQid = findWikidataQids(html).length > 0;
   const hasHeadlineDefinition = /"headline"\s*:\s*"[^"]{20,}"/i.test(html);
   const hasPrimaryCitations = /"citation"\s*:\s*\[/i.test(html);
+  const noScholarlyQid = !hasScholarlyQidBinding(html);
 
   const l2Checks = [
     { label: "Server-injected JSON-LD schema blocks in <head>", passed: hasJsonLd },
     { label: "Wikipedia Wikidata Q-ID triangulation (wikidata.org/entity/Q...)", passed: hasWikidataQid },
     { label: "Cleveland Clinic 1-sentence factual definition in JSON-LD headline", passed: hasHeadlineDefinition },
     { label: "Primary institutional/technical citation[] array in JSON-LD", passed: hasPrimaryCitations },
+    {
+      label: "No scholarly-article Q-ID (Q13442814 / Q18918145 / Q7318358) bound in JSON-LD",
+      passed: noScholarlyQid,
+    },
   ];
 
   // --- Layer 3: Programmatic Matrix & IA Link Mesh ---
@@ -377,12 +397,18 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   ];
 
   // --- Layer 5: Top-of-DOM Infobox, H3 Question Fan-Out & llms.txt ---
-  const hasInfoboxTable = /<table[^>]+class=["'][^"']*entity-infobox[^"']*["']/i.test(html);
+  const infoboxOffset = infoboxByteOffset(html);
+  const hasInfoboxTable = infoboxOffset !== -1;
+  const infoboxWithinBudget = infoboxOffset !== -1 && infoboxOffset <= INFOBOX_BYTE_BUDGET;
   const hasQuestionH3s = /<h3(?:\s[^>]*)?>[\s\S]*?\?\s*(?:<[^>]+>\s*)*<\/h3>/i.test(html);
   const hasH2Pillars = /<h2(?:\s[^>]*)?>[\s\S]+?<\/h2>/i.test(html);
 
   const l5Checks = [
     { label: "Wikipedia Top-of-DOM <table class='entity-infobox'> in HTML", passed: hasInfoboxTable },
+    {
+      label: "Entity infobox starts within the first 15KB of HTML (Top-of-DOM byte budget)",
+      passed: infoboxWithinBudget,
+    },
     { label: "Cleveland Clinic H2 pillar headings in DOM", passed: hasH2Pillars },
     { label: "Literal natural-language Question H3 fan-out headers (?)", passed: hasQuestionH3s },
     { label: "Active /llms.txt machine-readable Markdown manifest", passed: hasLlmsTxt },
@@ -411,6 +437,10 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     {
       label: "All 4 retrieval engines (Google, Perplexity, OpenAI, Brave/Claude) unblocked",
       passed: allEnginesUnblocked,
+    },
+    {
+      label: "No hidden LLM prompt-injection / cloaking patterns in HTML",
+      passed: reachable && !hasPromptInjection(html),
     },
   ];
 

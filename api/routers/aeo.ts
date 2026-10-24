@@ -8,6 +8,9 @@ import {
 } from "../lib/titan-engine";
 import { injectMeta, resolveRouteMeta } from "../lib/html-inject";
 import { WIKIDATA_ENTITIES } from "../lib/json-ld";
+import { mdLink, buildKeyPagesSection } from "../lib/llms-txt";
+
+const SITE_URL = "https://web-ready.ag";
 
 const aeoRouter = new Hono();
 
@@ -87,9 +90,11 @@ aeoRouter.get("/llms.txt", async (c) => {
   }
   md += `\n`;
 
+  md += `${buildKeyPagesSection(SITE_URL)}\n`;
+
   md += `## Our Services\n`;
   services.forEach((svc) => {
-    md += `- **${svc.name}**: ${svc.fullDesc}\n`;
+    md += `- ${mdLink(svc.name, `${SITE_URL}/services`)}: ${svc.fullDesc}\n`;
     const features = typeof svc.features === "string" ? JSON.parse(svc.features) : svc.features;
     if (Array.isArray(features)) {
       md += `  Features: ${features.join(", ")}\n`;
@@ -97,8 +102,11 @@ aeoRouter.get("/llms.txt", async (c) => {
   });
 
   md += `\n## Service Areas\n`;
-  md += `We proudly serve the following Florida markets: ${geoPages.map((g) => g.city).join(", ")}.\n\n`;
-
+  md += `We proudly serve the following Florida markets:\n`;
+  geoPages.forEach((g) => {
+    md += `- ${mdLink(g.city, `${SITE_URL}/locations/${g.slug}`)}\n`;
+  });
+  md += `\n`;
   md += `## System Architecture\n`;
   md += `This website utilizes a proprietary Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO) layer that pre-renders Top-of-DOM entity infobox tables, Wikidata Q-ID @graph schemas, and H3 question fan-out trees for Google, Perplexity, OpenAI Search, and Brave Search (Claude).\n`;
 
@@ -149,19 +157,19 @@ aeoRouter.get("/llms-full.txt", async (c) => {
 
   md += `## Service Areas\n`;
   for (const geo of geoPages) {
-    md += `- ${geo.city}, ${geo.state} — https://web-ready.ag/locations/${geo.slug}\n`;
+    md += `- ${mdLink(`${geo.city}, ${geo.state}`, `${SITE_URL}/locations/${geo.slug}`)}\n`;
   }
   md += `\n`;
 
   md += `## Blog Posts\n`;
   for (const post of posts) {
-    md += `- ${post.title} (${post.category || "general"}) — https://web-ready.ag/blog/${post.slug}\n`;
+    md += `- ${mdLink(post.title, `${SITE_URL}/blog/${post.slug}`)} (${post.category || "general"})\n`;
     if (post.excerpt) md += `  ${post.excerpt}\n`;
   }
   md += `\n`;
 
   md += `## Contact\n`;
-  md += `- Website: https://web-ready.ag\n`;
+  md += `- Website: ${mdLink("web-ready.ag", SITE_URL)}\n`;
   md += `- Phone: (904) 555-0147\n`;
   md += `- Email: info@web-ready.ag\n\n`;
 
