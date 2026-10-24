@@ -12,18 +12,32 @@ const JSON_MEDIA_TYPES = new Set(["application/json", "application/llm+json", "a
  * for Markdown or JSON. Linear in the header length.
  */
 export function chooseRepresentation(accept: string): Representation {
-  let wantsMarkdown = false;
-  let wantsJson = false;
+  let qHtml = 0;
+  let qMarkdown = 0;
+  let qJson = 0;
+
   for (const part of accept.slice(0, 2048).split(",")) {
     const [rawType, ...params] = part.split(";");
     const type = rawType.trim().toLowerCase();
-    const q = params.map((p) => p.trim().toLowerCase()).find((p) => p.startsWith("q="));
-    if (q !== undefined && Number(q.slice(2)) === 0) continue;
-    if (type === "text/markdown") wantsMarkdown = true;
-    else if (JSON_MEDIA_TYPES.has(type)) wantsJson = true;
+    let q = 1.0;
+    const qParam = params.map((p) => p.trim().toLowerCase()).find((p) => p.startsWith("q="));
+    if (qParam !== undefined) {
+      const parsed = Number(qParam.slice(2));
+      q = Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0;
+    }
+    if (q === 0) continue;
+
+    if (type === "text/markdown") {
+      qMarkdown = Math.max(qMarkdown, q);
+    } else if (JSON_MEDIA_TYPES.has(type)) {
+      qJson = Math.max(qJson, q);
+    } else if (type === "text/html" || type === "application/xhtml+xml") {
+      qHtml = Math.max(qHtml, q);
+    }
   }
-  if (wantsMarkdown) return "markdown";
-  if (wantsJson) return "json";
+
+  if (qMarkdown > 0 && qMarkdown >= qJson && qMarkdown >= qHtml) return "markdown";
+  if (qJson > 0 && qJson > qHtml) return "json";
   return "html";
 }
 
@@ -43,6 +57,17 @@ function appendVaryAccept(headers: Headers): void {
   headers.set("Vary", `${existing}, Accept`);
 }
 
+function applyVaryAccept(c: { header: (name: string, value: string) => void; res: { headers: Headers } }): void {
+  const existing = c.res.headers.get("Vary");
+  if (!existing) {
+    c.header("Vary", "Accept");
+    return;
+  }
+  const tokens = existing.split(",").map((t) => t.trim().toLowerCase());
+  if (tokens.includes("accept") || tokens.includes("*")) return;
+  c.header("Vary", `${existing}, Accept`);
+}
+
 /**
  * Content-negotiation middleware. Every response that passes through (markdown,
  * JSON, or the HTML fall-through) carries `Vary: Accept` so shared caches/CDNs
@@ -56,13 +81,13 @@ export function createNegotiationMiddleware(deps: NegotiationDeps): MiddlewareHa
       const md = await deps.buildMarkdown(c.req.path);
       if (md) {
         c.header("Content-Type", "text/markdown; charset=utf-8");
-        c.header("Vary", "Accept");
+        applyVaryAccept(c);
         return c.body(md);
       }
     } else if (representation === "json") {
       const payload = await deps.buildJson(c.req.path);
       if (payload) {
-        c.header("Vary", "Accept");
+        applyVaryAccept(c);
         return c.json(payload);
       }
     }

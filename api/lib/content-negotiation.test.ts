@@ -33,6 +33,17 @@ describe("chooseRepresentation", () => {
   it("does not treat application/jsonp-like or lookalike tokens as JSON", () => {
     expect(chooseRepresentation("text/html;x=application/jsonx")).toBe("html");
   });
+
+  it("prioritizes text/html over application/json when HTML has equal or higher q-factor", () => {
+    expect(chooseRepresentation("text/html, application/json;q=0.5")).toBe("html");
+    expect(chooseRepresentation("text/html, application/json")).toBe("html");
+    expect(chooseRepresentation("text/html;q=0.9, application/json;q=0.8")).toBe("html");
+  });
+
+  it("serves JSON when application/json has strictly higher q-factor than HTML", () => {
+    expect(chooseRepresentation("application/json, text/html;q=0.5")).toBe("json");
+    expect(chooseRepresentation("application/llm+json, text/html;q=0.1")).toBe("json");
+  });
 });
 
 describe("createNegotiationMiddleware", () => {
@@ -92,5 +103,21 @@ describe("createNegotiationMiddleware", () => {
     expect(vary).toContain("accept");
     expect(vary).toContain("accept-encoding");
     expect(vary.filter((v) => v === "accept")).toHaveLength(1);
+  });
+
+  it("preserves pre-existing Vary headers on JSON responses", async () => {
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.header("Vary", "Accept-Encoding");
+      await next();
+    });
+    app.use("*", createNegotiationMiddleware({
+      buildJson: async () => ({ status: "ok" }),
+      buildMarkdown: async () => null,
+    }));
+    const res = await app.request("/", { headers: { accept: "application/json" } });
+    const vary = (res.headers.get("vary") || "").toLowerCase().split(",").map((s) => s.trim());
+    expect(vary).toContain("accept");
+    expect(vary).toContain("accept-encoding");
   });
 });

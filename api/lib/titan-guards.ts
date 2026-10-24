@@ -61,7 +61,7 @@ export function hasContentNoSnippet(html: string): boolean {
 export function extractJsonLdBlocks(html: string): string[] {
   const blocks: string[] = [];
   const openRe = new RegExp(
-    `<script\\b[^>]{0,500}type\\s*=\\s*["']?application\\/ld\\+json["']?[^>]{0,500}>`,
+    `<script\\b[^>]{0,${MAX_TAG_LEN}}type\\s*=\\s*["']?application\\/ld\\+json["']?[^>]{0,${MAX_TAG_LEN}}>`,
     "gi",
   );
   const lower = html.toLowerCase();
@@ -92,7 +92,7 @@ export function hasScholarlyQidBinding(html: string): boolean {
 /** Byte offset of the entity-infobox `<table>` start, or -1 if absent. */
 export function infoboxByteOffset(html: string): number {
   const re = new RegExp(
-    `<table\\b[^>]{0,${MAX_TAG_LEN}}class=["'][^"']{0,500}entity-infobox`,
+    `<table\\b[^>]{0,${MAX_TAG_LEN}}class\\s*=\\s*["'][^"']{0,500}\\bentity-infobox\\b`,
     "i",
   );
   const m = re.exec(html);
@@ -131,7 +131,7 @@ const INJECTION_PHRASES = [
   /(?:ignore|disregard|forget)\s{1,5}(?:all\s{1,5})?(?:of\s{1,5})?(?:the\s{1,5})?(?:previous|prior|above|earlier|preceding)\s{1,5}(?:instructions?|prompts?|directions?|context)/,
   /<\|(?:system|im_start|im_end|assistant|user|endoftext)\|>/,
 ];
-const COMMENT_DIRECTIVE = /^\s*(?:prompt|instructions?|system|assistant|ai instructions?)\s*:/;
+const COMMENT_DIRECTIVE = /(?:^|\n|\b)(?:prompt|instructions?|system|assistant|ai instructions?)\s*:/;
 const HIDDEN_STYLE =
   /display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0*[01](?:\.\d+)?(?:px|pt|em|rem|%)?\s*(?:;|$)|color\s*:\s*transparent|opacity\s*:\s*0(?:\.0+)?\s*(?:;|$)/;
 const HIDDEN_DIRECTIVE =
@@ -141,13 +141,14 @@ const HIDDEN_DIRECTIVE =
  * Detects hidden prompt-injection / cloaking aimed at LLM crawlers:
  * known override phrases and chat-template tokens (outside <pre>/<code>),
  * HTML comments carrying `prompt:`/`instruction:` directives, and
- * display:none / microfont / transparent elements with directive text.
+ * display:none / microfont / transparent / hidden elements with directive text.
  */
 export function hasPromptInjection(html: string): boolean {
   const lower = html.toLowerCase();
 
   const visible = stripElements(stripElements(lower, "pre"), "code");
-  if (INJECTION_PHRASES.some((re) => re.test(visible))) return true;
+  const visibleText = visible.replace(/<[^>]*>/g, " ");
+  if (INJECTION_PHRASES.some((re) => re.test(visible) || re.test(visibleText))) return true;
 
   // HTML comments (an unterminated comment swallows the rest of the document).
   let pos = 0;
@@ -161,14 +162,19 @@ export function hasPromptInjection(html: string): boolean {
     pos = e + 3;
   }
 
-  // Hidden elements carrying directive-style text.
-  const tagRe = new RegExp(`<([a-z][a-z0-9]{0,9})\\b[^>]{0,${MAX_TAG_LEN}}>`, "g");
+  // Hidden elements carrying directive-style text (handles child/nested tags).
+  const tagRe = new RegExp(`<([a-z][a-z0-9]{0,9})\\b[^>]{0,${MAX_TAG_LEN}}>`, "gi");
   for (const m of visible.matchAll(tagRe)) {
-    const style = attr(m[0], "style");
-    if (!style || !HIDDEN_STYLE.test(style)) continue;
-    const from = (m.index ?? 0) + m[0].length;
-    const nextTag = visible.indexOf("<", from);
-    const text = visible.slice(from, nextTag === -1 ? from + MAX_TAG_LEN : Math.min(nextTag, from + MAX_TAG_LEN));
+    const tag = m[0];
+    const tagName = m[1].toLowerCase();
+    const style = attr(tag, "style");
+    const isHidden = (style && HIDDEN_STYLE.test(style)) || /\bhidden\b/i.test(tag);
+    if (!isHidden) continue;
+    const from = (m.index ?? 0) + tag.length;
+    const closeTag = `</${tagName}>`;
+    const end = visible.indexOf(closeTag, from);
+    const windowEnd = end === -1 ? Math.min(visible.length, from + MAX_TAG_LEN) : Math.min(end, from + MAX_TAG_LEN);
+    const text = visible.slice(from, windowEnd).replace(/<[^>]*>/g, " ");
     if (HIDDEN_DIRECTIVE.test(text)) return true;
   }
   return false;
