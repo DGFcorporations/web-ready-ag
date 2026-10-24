@@ -8,7 +8,8 @@ import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { aeoRouter } from "./routers/aeo";
-import { isAiCrawler, buildAeoPayload, buildAeoMarkdownPayload } from "./lib/aeo-payload";
+import { buildAeoPayload, buildAeoMarkdownPayload } from "./lib/aeo-payload";
+import { createNegotiationMiddleware } from "./lib/content-negotiation";
 import { securityHeaders } from "./lib/headers";
 
 const app = new Hono<{ Bindings: HttpBindings & { ASSETS?: { fetch: (req: Request) => Promise<Response> } } }>();
@@ -31,32 +32,18 @@ app.use("/api/trpc/*", async (c) => {
 });
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
-// AEO Crawler & Content Negotiation Interception:
+// AEO Content Negotiation (Accept header only; User-Agent is NOT used):
 // - `Accept: text/markdown` serves clean Markdown with Top-of-DOM Infobox table + H3 Fan-Out.
-// - AI crawlers or `Accept: application/llm` receive structured JSON knowledge graphs.
-app.use("*", async (c, next) => {
-  const userAgent = c.req.header("user-agent") || "";
-  const accept = c.req.header("accept") || "";
-  const isLlmRequest = accept.includes("application/llm");
-  const isMarkdownRequest = accept.includes("text/markdown");
-
-  if (isMarkdownRequest) {
-    const md = await buildAeoMarkdownPayload(c.req.path);
-    if (md) {
-      c.header("Content-Type", "text/markdown; charset=utf-8");
-      return c.body(md);
-    }
-  }
-
-  if (isAiCrawler(userAgent) || isLlmRequest) {
-    const payload = await buildAeoPayload(c.req.path);
-    if (payload) {
-      console.log(`[AEO] Serving structured payload for ${c.req.path} to ${userAgent}`);
-      return c.json(payload);
-    }
-  }
-  await next();
-});
+// - `Accept: application/json | application/llm+json` serves the structured knowledge graph.
+// - Everything else (including AI crawlers asking for text/html) gets pre-rendered HTML.
+// All responses carry `Vary: Accept` to prevent CDN cache poisoning.
+app.use(
+  "*",
+  createNegotiationMiddleware({
+    buildJson: buildAeoPayload,
+    buildMarkdown: buildAeoMarkdownPayload,
+  }),
+);
 
 export default app;
 
