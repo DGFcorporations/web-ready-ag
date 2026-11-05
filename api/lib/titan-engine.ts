@@ -7,6 +7,8 @@ import {
   hasScholarlyQidBinding,
   infoboxByteOffset,
 } from "./titan-guards";
+import type { HumanGradeAuditResult } from "./human-audit-types";
+import { auditHumanGradePage } from "./human-auditor";
 
 export interface WebAgLayerSpec {
   layerNumber: number;
@@ -46,6 +48,10 @@ export interface TitanAuditInput {
   httpStatus?: number | null;
   wafBlocked?: boolean;
   probeError?: string;
+  cspHeader?: string;
+  sitemapXml?: string;
+  additionalPages?: Array<{ url: string; html: string }>;
+  humanAuditResult?: HumanGradeAuditResult;
 }
 
 export interface TitanAuditResult {
@@ -65,6 +71,7 @@ export interface TitanAuditResult {
     mode: "REMEDIATE" | "SENTINEL_LOOP";
     actions: string[];
   };
+  humanGradeAudit?: HumanGradeAuditResult;
 }
 
 export const WEB_AG_LAYERS: WebAgLayerSpec[] = [
@@ -319,6 +326,18 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const hasLlmsTxt = input.hasLlmsTxt ?? true;
   const hasLlmsFullTxt = input.hasLlmsFullTxt ?? true;
 
+  const humanGradeAudit =
+    input.humanAuditResult ||
+    (reachable && html.length > 50
+      ? auditHumanGradePage({
+          url: input.url,
+          html,
+          cspHeader: input.cspHeader,
+          sitemapXml: input.sitemapXml,
+          additionalPages: input.additionalPages,
+        })
+      : undefined);
+
   // --- Layer 1: Edge Speed, 12-Bot AI Allowlist & Parameter Crawl Fence ---
   const nonEmptyRoot =
     reachable && !/<div\s+id=["']root["']\s*>\s*<\/div>/i.test(html) && html.length > 200;
@@ -338,6 +357,7 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const hasParamFence = /Disallow:\s*\/\*\?q=\*/i.test(robots);
   const fastTtfb = reachable && ttfbMs <= 300;
   const indexable = reachable && !hasBlockingRobotsMeta(html) && !hasContentNoSnippet(html);
+  const mobileTbtCheckPassed = humanGradeAudit ? humanGradeAudit.mobileVitals.passed : true;
 
   const l1Checks = [
     { label: "Pre-rendered non-empty #root HTML shell (0.00 CLS)", passed: nonEmptyRoot },
@@ -349,6 +369,10 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     {
       label: "Page is indexable and snippet-eligible (no noindex / nosnippet / max-snippet:0)",
       passed: indexable,
+    },
+    {
+      label: "Mobile lab emulation & Total Blocking Time (TBT <= 200ms on 390px, no unthrottled canvas loops)",
+      passed: reachable && mobileTbtCheckPassed,
     },
   ];
 
@@ -379,11 +403,16 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     /<title(?:\s[^>]*)?>[^<]{5,}<\/title>/i.test(html) &&
     /<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/i.test(html);
   const hasOrgOrLocalSchema = /"@type"\s*:\s*"(Organization|LocalBusiness|WebSite)"/i.test(html);
+  const linkGraphPassed = humanGradeAudit ? humanGradeAudit.linkGraph.passed : true;
 
   const l3Checks = [
     { label: "Self-referencing canonical URL tag present", passed: hasCanonical },
     { label: "Unique <title> and <meta name='description'> injected", passed: hasTitleAndDesc },
     { label: "Hub-and-spoke Organization / LocalBusiness / WebSite schema linkage", passed: hasOrgOrLocalSchema },
+    {
+      label: "Internal link graph & zero orphan pages (sitemap routes have inbound links, click depth <= 3)",
+      passed: reachable && linkGraphPassed,
+    },
   ];
 
   // --- Layer 4: Proprietary Data Floor & Institutional Citations ---
@@ -402,6 +431,9 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const infoboxWithinBudget = infoboxOffset !== -1 && infoboxOffset <= INFOBOX_BYTE_BUDGET;
   const hasQuestionH3s = /<h3(?:\s[^>]*)?>[\s\S]*?\?\s*(?:<[^>]+>\s*)*<\/h3>/i.test(html);
   const hasH2Pillars = /<h2(?:\s[^>]*)?>[\s\S]+?<\/h2>/i.test(html);
+  const contrastCheckPassed = humanGradeAudit
+    ? humanGradeAudit.contrast.passed && !humanGradeAudit.contrast.themeBleedDetected
+    : true;
 
   const l5Checks = [
     { label: "Wikipedia Top-of-DOM <table class='entity-infobox'> in HTML", passed: hasInfoboxTable },
@@ -412,6 +444,10 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     { label: "Cleveland Clinic H2 pillar headings in DOM", passed: hasH2Pillars },
     { label: "Literal natural-language Question H3 fan-out headers (?)", passed: hasQuestionH3s },
     { label: "Active /llms.txt machine-readable Markdown manifest", passed: hasLlmsTxt },
+    {
+      label: "Computed WCAG AA contrast compliant (minimum 4.5:1 text, 3.0:1 badges, no theme bleed)",
+      passed: reachable && contrastCheckPassed,
+    },
   ];
 
   // --- Layer 6: Dual-Track Omnichannel Consensus ---
@@ -431,6 +467,7 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const sentinelHealthy = reachable && prelimPassCount / prelimTotal >= 0.85;
   const allEnginesUnblocked =
     reachable && !wafBlocked && oaiAllowed && perplexityAllowed && claudeBraveAllowed;
+  const runtimeClean = humanGradeAudit ? humanGradeAudit.clientRuntime.passed : true;
 
   const l7Checks = [
     { label: "Cross-layer readiness threshold >= 85%", passed: sentinelHealthy },
@@ -442,6 +479,10 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
       label: "No hidden LLM prompt-injection / cloaking patterns in HTML",
       passed: reachable && !hasPromptInjection(html),
     },
+    {
+      label: "Clean client-side runtime (zero console exceptions, zero CSP violations, no dead/unconfigured chatbot widgets)",
+      passed: reachable && runtimeClean,
+    },
   ];
 
   const rawCheckGroups = [l1Checks, l2Checks, l3Checks, l4Checks, l5Checks, l6Checks, l7Checks];
@@ -449,8 +490,25 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
   const layers: LayerAuditResult[] = WEB_AG_LAYERS.map((spec, idx) => {
     const checks = rawCheckGroups[idx];
     const passedCount = checks.filter((c) => c.passed).length;
-    const score = Math.round((passedCount / checks.length) * 100);
-    const passed = score >= 80 && (idx !== 0 || reachable);
+    let score = Math.round((passedCount / checks.length) * 100);
+    if (idx === 0 && !mobileTbtCheckPassed) {
+      score = Math.min(score, 45);
+    }
+    if (idx === 2 && !linkGraphPassed) {
+      score = Math.min(score, 45);
+    }
+    if (idx === 4 && !contrastCheckPassed) {
+      score = Math.min(score, 45);
+    }
+    if (idx === 6 && !runtimeClean) {
+      score = Math.min(score, 45);
+    }
+    const passed =
+      score >= 80 &&
+      (idx !== 0 || (reachable && mobileTbtCheckPassed)) &&
+      (idx !== 2 || linkGraphPassed) &&
+      (idx !== 4 || contrastCheckPassed) &&
+      (idx !== 6 || runtimeClean);
     const remediation = checks
       .filter((c) => !c.passed)
       .map((c) => `[${spec.skillId}] Fix failed check: ${c.label}`);
@@ -528,5 +586,6 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     engineScores,
     layers,
     nextSingleLayerToExecute,
+    humanGradeAudit,
   };
 }

@@ -76,6 +76,7 @@ export interface LiveProbeMetadata {
   hasRobotsTxt: boolean;
   hasLlmsTxt: boolean;
   hasLlmsFullTxt: boolean;
+  hasSitemap?: boolean;
   finalUrl: string;
   error?: string;
 }
@@ -572,11 +573,12 @@ export async function probeAndAuditLiveUrl(
   }
 
   const origin = validation.origin;
-  const [pageRes, robotsRes, llmsRes, llmsFullRes] = await Promise.all([
+  const [pageRes, robotsRes, llmsRes, llmsFullRes, sitemapRes] = await Promise.all([
     safeFetchText(validation.url.href, { ...options, maxBytes: MAX_HTML_BYTES }),
     safeFetchText(`${origin}/robots.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
     safeFetchText(`${origin}/llms.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
     safeFetchText(`${origin}/llms-full.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
+    safeFetchText(`${origin}/sitemap.xml`, { ...options, maxBytes: MAX_ROBOTS_BYTES * 2 }),
   ]);
 
   const wafBlocked = pageRes.status === 403 || pageRes.status === 429 || pageRes.status === 503;
@@ -593,6 +595,11 @@ export async function probeAndAuditLiveUrl(
     llmsFullRes.ok &&
     llmsFullRes.text.trim().length > 10 &&
     !isLikelyHtmlFallback(llmsFullRes.text);
+  const hasSitemap =
+    sitemapRes.ok &&
+    sitemapRes.text.trim().length > 20 &&
+    !isLikelyHtmlFallback(sitemapRes.text) &&
+    /(?:<urlset|<sitemapindex)/i.test(sitemapRes.text);
 
   const audit = auditHtmlAgainstTitanStandard({
     url: pageRes.finalUrl || validation.url.href,
@@ -600,6 +607,7 @@ export async function probeAndAuditLiveUrl(
     robotsTxt: hasRobotsTxt ? robotsRes.text : "",
     hasLlmsTxt,
     hasLlmsFullTxt,
+    sitemapXml: hasSitemap ? sitemapRes.text : undefined,
     ttfbMs: pageRes.ttfbMs,
     reachable: pageRes.ok,
     httpStatus: pageRes.status,
@@ -616,6 +624,7 @@ export async function probeAndAuditLiveUrl(
       hasRobotsTxt,
       hasLlmsTxt,
       hasLlmsFullTxt,
+      hasSitemap,
       finalUrl: pageRes.finalUrl || validation.url.href,
       error: pageRes.error,
     },

@@ -14,6 +14,7 @@ import {
   MAX_HTML_BYTES,
   MAX_ROBOTS_BYTES,
 } from "../lib/url-guard";
+import { auditHumanGradePage } from "../lib/human-auditor";
 import { generateTitanLayerArtifacts } from "../lib/artifact-generator";
 
 const MAX_URL_LENGTH = 2048;
@@ -52,6 +53,8 @@ export const titanRouter = createRouter({
         hasLlmsTxt: z.boolean().optional(),
         hasLlmsFullTxt: z.boolean().optional(),
         ttfbMs: z.number().min(0).max(60_000).optional(),
+        cspHeader: z.string().optional(),
+        sitemapXml: z.string().optional(),
       }),
     )
     .mutation(({ input }) => {
@@ -62,6 +65,26 @@ export const titanRouter = createRouter({
         hasLlmsTxt: input.hasLlmsTxt ?? false,
         hasLlmsFullTxt: input.hasLlmsFullTxt ?? false,
         ttfbMs: input.ttfbMs ?? 120,
+        cspHeader: input.cspHeader,
+        sitemapXml: input.sitemapXml,
+      });
+    }),
+
+  auditHumanGrade: publicQuery
+    .input(
+      z.object({
+        url: z.string().min(1).max(MAX_URL_LENGTH),
+        html: z.string().max(MAX_HTML_BYTES),
+        cspHeader: z.string().optional(),
+        sitemapXml: z.string().optional(),
+      }),
+    )
+    .mutation(({ input }) => {
+      return auditHumanGradePage({
+        url: input.url,
+        html: input.html,
+        cspHeader: input.cspHeader,
+        sitemapXml: input.sitemapXml,
       });
     }),
 
