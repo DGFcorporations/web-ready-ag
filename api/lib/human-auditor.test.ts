@@ -262,5 +262,37 @@ describe("Human-Grade WebAG Audits — Mobile TBT, WCAG Contrast, Orphan Crawler
       expect(orphanCheck?.passed).toBe(false);
       expect(titanAudit.humanGradeAudit?.linkGraph.orphanPages).toContain("/med-spas");
     });
+
+    it("filters out sub-sitemap .xml files from sitemapindex so they are not flagged as orphans", () => {
+      const siteHtml = `<!doctype html><html><body><a href="/contact">Contact</a></body></html>`;
+      const sitemapIndex = `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap>
+        <sitemap><loc>https://example.com/sitemap-posts.xml</loc></sitemap>
+      </sitemapindex>`;
+
+      const audit = auditHumanGradePage({
+        url: "https://example.com/",
+        html: siteHtml,
+        sitemapXml: sitemapIndex,
+      });
+
+      expect(audit.linkGraph.orphanPages).toEqual([]);
+      expect(audit.linkGraph.nodes["/sitemap-pages.xml"]).toBeUndefined();
+    });
+
+    it("evaluates arbitrary hex and opacity Tailwind classes for contrast violations", () => {
+      const defectiveHtml = `<!doctype html><html><body class="bg-white">
+        <p class="text-[#cbd5e1]">Pale hex text</p>
+        <span class="badge text-slate-300/80 bg-slate-50">Pale badge with opacity</span>
+      </body></html>`;
+
+      const audit = auditHumanGradePage({
+        url: "https://example.com/",
+        html: defectiveHtml,
+      });
+
+      expect(audit.contrast.passed).toBe(false);
+      expect(audit.contrast.violationsCount).toBeGreaterThanOrEqual(1);
+    });
   });
 });

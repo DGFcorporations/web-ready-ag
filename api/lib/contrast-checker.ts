@@ -220,8 +220,18 @@ export function auditContrast(html: string): ContrastAuditResult {
 
     for (const c of classes) {
       if (c.startsWith("text-")) {
-        const colorName = c.slice(5);
-        if (TAILWIND_COLORS[colorName]) {
+        let colorName = c.slice(5);
+        if (colorName.includes("/")) {
+          colorName = colorName.split("/")[0];
+        }
+        if (colorName.startsWith("[") && colorName.endsWith("]")) {
+          const raw = colorName.slice(1, -1);
+          fgColorStr = raw;
+          const parsed = parseColor(raw);
+          if (parsed && getRelativeLuminance(parsed) > 0.5) {
+            hasPaleText = true;
+          }
+        } else if (TAILWIND_COLORS[colorName]) {
           fgColorStr = TAILWIND_COLORS[colorName];
           if (/-(?:50|100|200|300|400)$/.test(colorName) || colorName === "white") {
             hasPaleText = true;
@@ -229,8 +239,18 @@ export function auditContrast(html: string): ContrastAuditResult {
         }
       }
       if (c.startsWith("bg-")) {
-        const colorName = c.slice(3);
-        if (TAILWIND_COLORS[colorName]) {
+        let colorName = c.slice(3);
+        if (colorName.includes("/")) {
+          colorName = colorName.split("/")[0];
+        }
+        if (colorName.startsWith("[") && colorName.endsWith("]")) {
+          const raw = colorName.slice(1, -1);
+          bgColorStr = raw;
+          const parsed = parseColor(raw);
+          if (parsed && getRelativeLuminance(parsed) > 0.7) {
+            hasWhiteOrLightBg = true;
+          }
+        } else if (TAILWIND_COLORS[colorName]) {
           bgColorStr = TAILWIND_COLORS[colorName];
           if (/-(?:50|100|200)$/.test(colorName) || colorName === "white") {
             hasWhiteOrLightBg = true;

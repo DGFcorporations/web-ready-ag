@@ -65,6 +65,7 @@ export interface SafeFetchResult {
   text: string;
   finalUrl: string;
   ttfbMs: number;
+  headers?: Record<string, string>;
   error?: string;
 }
 
@@ -519,6 +520,11 @@ export async function safeFetchText(
         continue;
       }
 
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key.toLowerCase()] = value;
+      });
+
       const text = await readBoundedBody(res, maxBytes);
       return {
         ok: res.status >= 200 && res.status < 300,
@@ -526,6 +532,7 @@ export async function safeFetchText(
         text,
         finalUrl: validation.url.href,
         ttfbMs,
+        headers,
         error: res.status >= 400 ? `HTTP ${res.status}` : undefined,
       };
     } catch (err) {
@@ -600,6 +607,18 @@ export async function probeAndAuditLiveUrl(
     sitemapRes.text.trim().length > 20 &&
     !isLikelyHtmlFallback(sitemapRes.text) &&
     /(?:<urlset|<sitemapindex)/i.test(sitemapRes.text);
+  let sitemapXmlText = hasSitemap ? sitemapRes.text : undefined;
+  if (!sitemapXmlText && hasRobotsTxt) {
+    const sitemapMatch = robotsRes.text.match(/sitemap:\s*(https?:\/\/[^\s]+)/i);
+    if (sitemapMatch) {
+      const altSitemap = await safeFetchText(sitemapMatch[1], { ...options, maxBytes: MAX_ROBOTS_BYTES * 2 });
+      if (altSitemap.ok && altSitemap.text.trim().length > 20 && !isLikelyHtmlFallback(altSitemap.text)) {
+        sitemapXmlText = altSitemap.text;
+      }
+    }
+  }
+
+  const cspHeader = pageRes.headers?.["content-security-policy"];
 
   const audit = auditHtmlAgainstTitanStandard({
     url: pageRes.finalUrl || validation.url.href,
@@ -607,7 +626,8 @@ export async function probeAndAuditLiveUrl(
     robotsTxt: hasRobotsTxt ? robotsRes.text : "",
     hasLlmsTxt,
     hasLlmsFullTxt,
-    sitemapXml: hasSitemap ? sitemapRes.text : undefined,
+    sitemapXml: sitemapXmlText,
+    cspHeader,
     ttfbMs: pageRes.ttfbMs,
     reachable: pageRes.ok,
     httpStatus: pageRes.status,

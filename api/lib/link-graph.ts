@@ -81,6 +81,9 @@ export function parseSitemapUrls(sitemapXml: string, baseOrigin?: string): strin
 
   while ((match = locRegex.exec(sitemapXml)) !== null) {
     const loc = match[1].trim();
+    if (/\.xml(?:\?.*)?$/i.test(loc)) {
+      continue;
+    }
     const path = normalizePath(loc, baseOrigin);
     if (path && !urls.includes(path)) {
       urls.push(path);

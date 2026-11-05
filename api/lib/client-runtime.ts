@@ -27,7 +27,7 @@ export const CHATBOT_SIGNATURES: ChatbotSignature[] = [
     provider: "Crisp",
     scriptPattern: /client\.crisp\.chat\/l\.js|CRISP_WEBSITE_ID/i,
     configPattern: /CRISP_WEBSITE_ID\s*=\s*['"]([^'"]+)['"]/i,
-    requiredCspDomains: ["client.crisp.chat", "*.crisp.chat"],
+    requiredCspDomains: ["client.crisp.chat"],
     placeholderPatterns: [/YOUR_WEBSITE_ID/i, /^$/, /^undefined$/i, /^null$/i, /<website_id>/i],
   },
   {
@@ -48,7 +48,7 @@ export const CHATBOT_SIGNATURES: ChatbotSignature[] = [
     provider: "Tidio",
     scriptPattern: /code\.tidio\.co\/[a-z0-9]+\.js|tidio/i,
     configPattern: /code\.tidio\.co\/([a-zA-Z0-9_-]+)\.js/i,
-    requiredCspDomains: ["code.tidio.co", "*.tidio.co"],
+    requiredCspDomains: ["code.tidio.co", "widget-v4.tidiochat.com"],
     placeholderPatterns: [/YOUR_PUBLIC_KEY/i, /^$/],
   },
 ];
@@ -86,7 +86,11 @@ export function isAllowedByCsp(
   if (sources.includes("*")) return true;
 
   for (const src of sources) {
-    const cleanSrc = src.replace(/^https?:\/\//, "").replace(/:\d+$/, "").toLowerCase();
+    const cleanSrc = src
+      .replace(/^https?:\/\//, "")
+      .split("/")[0]
+      .replace(/:\d+$/, "")
+      .toLowerCase();
     const cleanTarget = targetDomain.toLowerCase();
 
     if (cleanSrc === cleanTarget) return true;

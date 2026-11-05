@@ -4,7 +4,7 @@ import type {
 } from "./human-audit-types";
 import { auditMobileVitals, type MobileVitalsOptions } from "./mobile-vitals";
 import { auditContrast } from "./contrast-checker";
-import { buildLinkGraph, type CrawledPageInput, type LinkGraphOptions } from "./link-graph";
+import { buildLinkGraph, parseSitemapUrls, type CrawledPageInput, type LinkGraphOptions } from "./link-graph";
 import { auditClientRuntime } from "./client-runtime";
 
 export interface HumanGradeAuditInput {
@@ -37,7 +37,7 @@ export function auditHumanGradePage(input: HumanGradeAuditInput): HumanGradeAudi
 
   // 3. Link Graph & Orphan Page Detection
   const allPages: CrawledPageInput[] = [{ url, html }, ...(additionalPages || [])];
-  const sitemapUrls = sitemapXml ? extractSitemapLocs(sitemapXml) : linkGraphOptions?.sitemapUrls;
+  const sitemapUrls = sitemapXml ? parseSitemapUrls(sitemapXml, url) : linkGraphOptions?.sitemapUrls;
 
   const linkGraph = buildLinkGraph(allPages, {
     homepageUrl: linkGraphOptions?.homepageUrl || url,
@@ -162,12 +162,4 @@ export function auditHumanGradePage(input: HumanGradeAuditInput): HumanGradeAudi
   };
 }
 
-function extractSitemapLocs(sitemapXml: string): string[] {
-  const locs: string[] = [];
-  const regex = /<loc>([^<]+)<\/loc>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(sitemapXml)) !== null) {
-    locs.push(match[1].trim());
-  }
-  return locs;
-}
+
