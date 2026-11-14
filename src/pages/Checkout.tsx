@@ -144,7 +144,7 @@ export default function Checkout() {
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full bg-[#0A0A0A] border border-[#2A2A2A] text-white text-[14px] pl-9 pr-4 py-3 focus:border-[#C8A45C] outline-none transition-colors"
-                        placeholder="(904) 555-0147"
+                        placeholder="(XXX) XXX-XXXX"
                       />
                     </div>
                   </div>
@@ -246,9 +246,9 @@ export default function Checkout() {
 
               <div className="mt-6 text-center">
                 <span className="text-[#8A8A8A] text-[12px]">
-                  Questions? Call us at{" "}
-                  <a href="tel:9045550147" className="text-[#C8A45C]">
-                    (904) 555-0147
+                  Questions? Email{" "}
+                  <a href="mailto:hello@dgfcorporations.com" className="text-[#C8A45C]">
+                    hello@dgfcorporations.com
                   </a>
                 </span>
               </div>

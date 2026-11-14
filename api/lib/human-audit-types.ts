@@ -5,6 +5,10 @@ export interface MobileVitalsResult {
     isMobile: boolean;
   };
   estimatedTbtMs: number;
+  lcpMs?: number;
+  inpMs?: number;
+  cls?: number;
+  cwvPassed?: boolean;
   blockingTasksCount: number;
   heavyCanvasDetected: boolean;
   unthrottledAnimationLoops: string[];

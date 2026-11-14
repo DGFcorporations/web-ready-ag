@@ -6,9 +6,13 @@ import {
   buildBreadcrumbJsonLd,
   buildWebsiteJsonLd,
   buildWebPageJsonLd,
+  buildPersonJsonLd,
+  buildFaqPageJsonLd,
+  buildUnifiedGraphJsonLd,
   resolveCityWikidataUri,
   WIKIDATA_ENTITIES,
 } from "./json-ld";
+import { ALL_COMPARISON_SPECS, SITE_RELEASE_DATE } from "./compare-catalog";
 
 export interface InfoboxRow {
   label: string;
@@ -29,6 +33,7 @@ export interface PageMeta {
   jsonLd?: object[];
   summaryLead?: string;
   wikidataUri?: string;
+  lastUpdated?: string;
   infobox?: InfoboxRow[];
   fanOutQuestions?: FanOutQuestion[];
 }
@@ -79,7 +84,7 @@ export function buildPrerenderedBodyShell(meta: PageMeta): string {
         { label: "Canonical URL", value: meta.canonical },
         { label: "Wikidata Entity Q-ID", value: wikidataUri },
         { label: "Target Retrieval Engines", value: "Google, Perplexity, OpenAI, Brave Search (Claude)" },
-        { label: "Architecture Standard", value: "WebReady-AG 7-Layer Single-Layer Engine" },
+        { label: "Architecture Standard", value: "WEB-READY/AG Enterprise 4-Layer Engine (SEO + AEO + GEO + AIO)" },
       ];
 
   const questions: FanOutQuestion[] = meta.fanOutQuestions && meta.fanOutQuestions.length > 0
@@ -88,15 +93,17 @@ export function buildPrerenderedBodyShell(meta: PageMeta): string {
         {
           pillar: "Overview & Architecture",
           question: `What is ${meta.title.split("|")[0].trim()} and how does it work?`,
-          answer: summaryLead,
+          answer: `${meta.title.split("|")[0].trim()} is an Agent-Grade search engineering system designed for zero-friction entity retrieval across Google, Perplexity, OpenAI Search, and Claude. Every deployment binds Wikidata identifiers, sub-1.8 second mobile vitals, transparent pricing tables, and connected @graph schemas inside initial server HTML.`,
         },
         {
           pillar: "Multi-Engine Optimization",
           question: "How does WebReady-AG optimize for Google, Perplexity, OpenAI Search, and Brave Search?",
           answer:
-            "WebReady-AG executes a 7-layer single-layer architecture combining sub-second pre-rendered HTML, Wikidata Q-ID @graph schemas, Top-of-DOM entity infoboxes, and H3 question fan-out trees.",
+            "WEB-READY/AG executes a deterministic 4-layer enterprise architecture uniting sub-second server-rendered HTML, connected Wikidata @graph schemas, Top-of-DOM entity infoboxes, 40 to 60 word pronoun-free answer capsules, and explicit crawler permissions so retrieval and training bots index verified facts cleanly.",
         },
       ];
+
+  const lastUpdatedIso = meta.lastUpdated || SITE_RELEASE_DATE;
 
   const infoboxHtml = infoboxRows
     .map(
@@ -105,10 +112,17 @@ export function buildPrerenderedBodyShell(meta: PageMeta): string {
     )
     .join("\n");
 
+  const anchorNavHtml = questions
+    .map(
+      (q, i) =>
+        `        <a href="#faq-${i}">${escapeAttr(q.pillar || `Question ${i + 1}`)}</a>`,
+    )
+    .join("\n");
+
   const fanOutHtml = questions
     .map(
-      (q) =>
-        `      <div class="fanout-item">\n        <h3>${escapeAttr(q.question)}</h3>\n        <p>${escapeAttr(q.answer)}</p>\n      </div>`,
+      (q, i) =>
+        `      <div id="faq-${i}" class="fanout-item">\n        <h3>${escapeAttr(q.question)}</h3>\n        <p>${escapeAttr(q.answer)}</p>\n      </div>`,
     )
     .join("\n");
 
@@ -118,12 +132,16 @@ export function buildPrerenderedBodyShell(meta: PageMeta): string {
     `    <header class="ag-entity-header">`,
     `      <h1>${escapeAttr(meta.title)}</h1>`,
     `      <p class="ag-summary-lead">${escapeAttr(summaryLead)}</p>`,
+    `      <p class="ag-freshness">Last Updated: <time datetime="${lastUpdatedIso}">${lastUpdatedIso}</time></p>`,
     `    </header>`,
     `    <table class="entity-infobox" aria-label="Entity Summary Infobox">`,
     `      <tbody>`,
     infoboxHtml,
     `      </tbody>`,
     `    </table>`,
+    `    <nav class="ag-summary-anchors" aria-label="On this page">`,
+    anchorNavHtml,
+    `    </nav>`,
     `    <section class="query-fanout-tree">`,
     `      <h2>Overview &amp; Common Questions</h2>`,
     fanOutHtml,
@@ -249,40 +267,90 @@ const STATIC_ROUTES: Record<string, { title: string; description: string; wikida
   "/blog": {
     title: "AI Search, AEO & GEO Engineering Blog | WEB-READY/AG",
     description:
-      "Technical research on Google AI Overviews, Perplexity Sonar, OpenAI Search, Brave Search, and 7-layer website dominance.",
+      "Technical research on Google AI Overviews, Perplexity Sonar, OpenAI Search, Brave Search, and Enterprise 4-Layer website engineering.",
     wikidataUri: WIKIDATA_ENTITIES.knowledgeGraph,
   },
+  ...Object.fromEntries(
+    ALL_COMPARISON_SPECS.map((spec) => [
+      spec.path,
+      {
+        title: `${spec.title} | WEB-READY/AG`,
+        description: spec.answerCapsule,
+        wikidataUri: spec.wikidataUri,
+      },
+    ]),
+  ),
 };
 
 export async function resolveRouteMeta(pathname: string): Promise<PageMeta | null> {
-  // Static routes
+  // Static routes (including all /compare* routes)
   if (STATIC_ROUTES[pathname]) {
     const r = STATIC_ROUTES[pathname];
+    const compareSpec = ALL_COMPARISON_SPECS.find((spec) => spec.path === pathname);
     const canonical = `${BASE_URL}${pathname === "/" ? "/" : pathname}`;
-    const jsonLd: object[] = [
-      buildOrganizationJsonLd(),
-      buildWebsiteJsonLd(),
-      buildWebPageJsonLd({
-        url: canonical,
-        name: r.title,
-        definitionHeadline: r.description,
-        wikidataUri: r.wikidataUri,
-      }),
+    const lastUpdated = compareSpec?.lastUpdated || SITE_RELEASE_DATE;
+    const orgNode = buildOrganizationJsonLd();
+    const siteNode = buildWebsiteJsonLd();
+    const personNode = buildPersonJsonLd({ origin: BASE_URL });
+    const pageNode = buildWebPageJsonLd({
+      url: canonical,
+      name: r.title,
+      definitionHeadline: r.description,
+      wikidataUri: r.wikidataUri,
+      dateModified: lastUpdated,
+    });
+    const fanOutQuestions: FanOutQuestion[] = compareSpec
+      ? [
+          {
+            pillar: "Comparison Summary",
+            question: compareSpec.questionHeading,
+            answer: compareSpec.answerCapsule,
+          },
+        ]
+      : [
+          {
+            pillar: "Overview & Architecture",
+            question: `What is ${r.title.split("|")[0].trim()} and how does it work?`,
+            answer: r.description,
+          },
+        ];
+    const faqNode = buildFaqPageJsonLd(
+      fanOutQuestions.map((q) => ({ question: q.question, answer: q.answer })),
+      canonical,
+    );
+    const graphNodes: Record<string, unknown>[] = [
+      orgNode,
+      siteNode,
+      personNode,
+      pageNode,
+      faqNode,
     ];
     if (pathname !== "/") {
-      jsonLd.push(
-        buildBreadcrumbJsonLd([
-          { name: "Home", url: BASE_URL },
-          { name: r.title.split("|")[0].trim(), url: canonical },
-        ]),
-      );
+      const breadcrumbs =
+        compareSpec && pathname !== "/compare"
+          ? [
+              { name: "Home", url: BASE_URL },
+              { name: "Compare", url: `${BASE_URL}/compare` },
+              { name: r.title.split("|")[0].trim(), url: canonical },
+            ]
+          : [
+              { name: "Home", url: BASE_URL },
+              { name: r.title.split("|")[0].trim(), url: canonical },
+            ];
+      graphNodes.push(buildBreadcrumbJsonLd(breadcrumbs));
     }
+    const jsonLd: object[] = [
+      buildUnifiedGraphJsonLd(graphNodes),
+      pageNode,
+    ];
     return {
       title: r.title,
       description: r.description,
       canonical,
       wikidataUri: r.wikidataUri,
+      lastUpdated,
       summaryLead: r.description,
+      fanOutQuestions,
       jsonLd,
     };
   }
@@ -301,44 +369,61 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
         page.metaDescription ||
         `Veteran-owned AI automation and Agent-Grade SEO/AEO agency serving ${page.city}, ${page.state}.`;
       const cityWikidata = resolveCityWikidataUri(page.slug || page.city);
+      const pageTitle = page.metaTitle || `AI Automation Services in ${page.city}, ${page.state}`;
+      const rawUpdated =
+        (page as { updatedAt?: Date | string | null; createdAt?: Date | string | null }).updatedAt ??
+        (page as { createdAt?: Date | string | null }).createdAt;
+      const lastUpdated =
+        rawUpdated && !Number.isNaN(new Date(rawUpdated).getTime())
+          ? new Date(rawUpdated).toISOString().slice(0, 10)
+          : SITE_RELEASE_DATE;
+      const locQuestions: FanOutQuestion[] = [
+        {
+          question: `What AI automation and SEO services are available in ${page.city}, ${page.state}?`,
+          answer: description,
+        },
+        {
+          question: `How does WEB-READY/AG rank ${page.city} businesses across Google, Perplexity, OpenAI, and Brave Search?`,
+          answer: `We deploy our Enterprise 4-Layer Agent-Grade architecture—including pre-rendered edge HTML, Wikidata Q-ID @graph schemas, Top-of-DOM infoboxes, and transparent pricing tables—tailored for ${page.city}, ${page.state}.`,
+        },
+      ];
+      const webPageNode = buildWebPageJsonLd({
+        url: canonical,
+        name: pageTitle,
+        definitionHeadline: description,
+        wikidataUri: cityWikidata,
+        dateModified: lastUpdated,
+      });
+      const locGraph = buildUnifiedGraphJsonLd([
+        buildOrganizationJsonLd(),
+        buildWebsiteJsonLd(),
+        buildPersonJsonLd({ origin: BASE_URL }),
+        buildLocalBusinessJsonLd(page),
+        webPageNode,
+        buildFaqPageJsonLd(locQuestions, canonical),
+        buildBreadcrumbJsonLd([
+          { name: "Home", url: BASE_URL },
+          { name: "Locations", url: `${BASE_URL}/locations` },
+          { name: page.city, url: canonical },
+        ]),
+      ]);
 
       return {
-        title: page.metaTitle || `AI Automation Services in ${page.city}, ${page.state}`,
+        title: pageTitle,
         description,
         canonical,
         wikidataUri: cityWikidata,
+        lastUpdated,
         summaryLead: description,
         infobox: [
           { label: "Service Market", value: `${page.city}, ${page.state}` },
           { label: "Canonical URL", value: canonical },
           { label: "Wikidata Location Q-ID", value: cityWikidata },
           { label: "Target Retrieval Engines", value: "Google, Perplexity, OpenAI, Brave Search (Claude)" },
-          { label: "Optimization Standard", value: "WebReady-AG 7-Layer Single-Layer Engine" },
+          { label: "Optimization Standard", value: "WEB-READY/AG Enterprise 4-Layer Engine" },
         ],
-        fanOutQuestions: [
-          {
-            question: `What AI automation and SEO services are available in ${page.city}, ${page.state}?`,
-            answer: description,
-          },
-          {
-            question: `How does WEB-READY/AG rank ${page.city} businesses across Google, Perplexity, OpenAI, and Brave Search?`,
-            answer: `We deploy our 7-layer Agent-Grade architecture—including pre-rendered edge HTML, Wikidata Q-ID @graph schemas, Top-of-DOM infoboxes, and transparent pricing tables—tailored for ${page.city}, ${page.state}.`,
-          },
-        ],
-        jsonLd: [
-          buildLocalBusinessJsonLd(page),
-          buildWebPageJsonLd({
-            url: canonical,
-            name: page.metaTitle || `AI Automation Services in ${page.city}, ${page.state}`,
-            definitionHeadline: description,
-            wikidataUri: cityWikidata,
-          }),
-          buildBreadcrumbJsonLd([
-            { name: "Home", url: BASE_URL },
-            { name: "Locations", url: `${BASE_URL}/locations` },
-            { name: page.city, url: canonical },
-          ]),
-        ],
+        fanOutQuestions: locQuestions,
+        jsonLd: [locGraph, webPageNode],
       };
     } catch {
       return null;
@@ -358,21 +443,44 @@ export async function resolveRouteMeta(pathname: string): Promise<PageMeta | nul
       const description =
         post.excerpt ||
         (post.content ? post.content.replace(/<[^>]+>/g, "").slice(0, 155) : post.title);
+      const rawUpdated =
+        (post as { updatedAt?: Date | string | null; publishedAt?: Date | string | null }).updatedAt ??
+        post.publishedAt;
+      const lastUpdated =
+        rawUpdated && !Number.isNaN(new Date(rawUpdated).getTime())
+          ? new Date(rawUpdated).toISOString().slice(0, 10)
+          : SITE_RELEASE_DATE;
+      const blogPageNode = buildWebPageJsonLd({
+        url: canonical,
+        name: post.title,
+        definitionHeadline: description,
+        wikidataUri: WIKIDATA_ENTITIES.knowledgeGraph,
+        dateModified: lastUpdated,
+      });
+      const blogGraph = buildUnifiedGraphJsonLd([
+        buildOrganizationJsonLd(),
+        buildWebsiteJsonLd(),
+        buildPersonJsonLd({
+          name: post.author || "Josh Chandler",
+          origin: BASE_URL,
+        }),
+        blogPageNode,
+        buildBlogPostingJsonLd(post),
+        buildBreadcrumbJsonLd([
+          { name: "Home", url: BASE_URL },
+          { name: "Blog", url: `${BASE_URL}/blog` },
+          { name: post.title, url: canonical },
+        ]),
+      ]);
       return {
         title: `${post.title} | WEB-READY/AG Blog`,
         description,
         canonical,
         ogImage: post.featuredImage || undefined,
         wikidataUri: WIKIDATA_ENTITIES.knowledgeGraph,
+        lastUpdated,
         summaryLead: description,
-        jsonLd: [
-          buildBlogPostingJsonLd(post),
-          buildBreadcrumbJsonLd([
-            { name: "Home", url: BASE_URL },
-            { name: "Blog", url: `${BASE_URL}/blog` },
-            { name: post.title, url: canonical },
-          ]),
-        ],
+        jsonLd: [blogGraph, blogPageNode],
       };
     } catch {
       return null;

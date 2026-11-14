@@ -1,5 +1,9 @@
 import { lookup } from "node:dns/promises";
 import { auditHtmlAgainstTitanStandard, type TitanAuditResult } from "./titan-engine";
+import {
+  classifyBotUserAgent,
+  type BotHttpProbeResult,
+} from "./enterprise";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 8_000;
 export const MAX_HTML_BYTES = 1_048_576; // 1 MiB max HTML read buffer
@@ -57,6 +61,23 @@ export interface SafeFetchOptions {
   maxBytes?: number;
   fetchImpl?: typeof fetch;
   dnsLookup?: DnsLookupFn;
+  userAgent?: string;
+  probeBots?: boolean;
+}
+
+export interface RedirectHop {
+  url: string;
+  status: number;
+  location?: string;
+}
+
+export interface BotAccessProbe {
+  bot: string;
+  category: "search_retrieval" | "model_training" | "other";
+  status: number | null;
+  wafBlocked: boolean;
+  challengeDetected: boolean;
+  ok: boolean;
 }
 
 export interface SafeFetchResult {
@@ -66,6 +87,7 @@ export interface SafeFetchResult {
   finalUrl: string;
   ttfbMs: number;
   headers?: Record<string, string>;
+  redirectChain?: RedirectHop[];
   error?: string;
 }
 
@@ -79,6 +101,8 @@ export interface LiveProbeMetadata {
   hasLlmsFullTxt: boolean;
   hasSitemap?: boolean;
   finalUrl: string;
+  redirectChain?: RedirectHop[];
+  botProbes?: BotAccessProbe[];
   error?: string;
 }
 
@@ -419,6 +443,10 @@ export async function safeFetchText(
   let currentUrlStr = targetUrl;
   const startTime = Date.now();
   const deadline = startTime + timeoutMs;
+  const redirectChain: RedirectHop[] = [];
+  const uaString =
+    options.userAgent ||
+    "Mozilla/5.0 (compatible; WebReadyAG-TitanSentinel/2.0; +https://web-ready.ag/ai.txt)";
 
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     const validation = validatePublicAuditUrl(currentUrlStr);
@@ -429,6 +457,7 @@ export async function safeFetchText(
         text: "",
         finalUrl: currentUrlStr,
         ttfbMs: Math.max(1, Date.now() - startTime),
+        redirectChain,
         error: validation.reason || "Blocked URL",
       };
     }
@@ -446,6 +475,7 @@ export async function safeFetchText(
           text: "",
           finalUrl: validation.url.href,
           ttfbMs: Math.max(1, Date.now() - startTime),
+          redirectChain,
           error: dnsCheck.reason || "Blocked by DNS guard",
         };
       }
@@ -459,6 +489,7 @@ export async function safeFetchText(
         text: "",
         finalUrl: validation.url.href,
         ttfbMs: Math.max(1, Date.now() - startTime),
+        redirectChain,
         error: `Request timed out after ${timeoutMs}ms`,
       };
     }
@@ -472,8 +503,7 @@ export async function safeFetchText(
         redirect: "manual",
         signal: controller.signal,
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; WebReadyAG-TitanSentinel/2.0; +https://web-ready.ag/ai.txt)",
+          "User-Agent": uaString,
           Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
         },
       });
@@ -482,6 +512,11 @@ export async function safeFetchText(
 
       if (res.status >= 300 && res.status < 400) {
         const locationHeader = res.headers.get("location");
+        redirectChain.push({
+          url: validation.url.href,
+          status: res.status,
+          location: locationHeader || undefined,
+        });
         if (!locationHeader) {
           return {
             ok: false,
@@ -489,6 +524,7 @@ export async function safeFetchText(
             text: "",
             finalUrl: validation.url.href,
             ttfbMs,
+            redirectChain,
             error: `Redirect (${res.status}) missing Location header.`,
           };
         }
@@ -502,6 +538,7 @@ export async function safeFetchText(
             text: "",
             finalUrl: validation.url.href,
             ttfbMs,
+            redirectChain,
             error: "Blocked malformed redirect Location header.",
           };
         }
@@ -513,6 +550,7 @@ export async function safeFetchText(
             text: "",
             finalUrl: nextUrl,
             ttfbMs,
+            redirectChain,
             error: `Blocked unsafe redirect target: ${nextValidation.reason}`,
           };
         }
@@ -520,6 +558,7 @@ export async function safeFetchText(
         continue;
       }
 
+      redirectChain.push({ url: validation.url.href, status: res.status });
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
         headers[key.toLowerCase()] = value;
@@ -533,6 +572,7 @@ export async function safeFetchText(
         finalUrl: validation.url.href,
         ttfbMs,
         headers,
+        redirectChain,
         error: res.status >= 400 ? `HTTP ${res.status}` : undefined,
       };
     } catch (err) {
@@ -543,6 +583,7 @@ export async function safeFetchText(
         text: "",
         finalUrl: validation.url.href,
         ttfbMs: Math.max(1, Date.now() - startTime),
+        redirectChain,
         error: message.includes("abort") ? `Request timed out after ${timeoutMs}ms` : message,
       };
     } finally {
@@ -556,6 +597,7 @@ export async function safeFetchText(
     text: "",
     finalUrl: currentUrlStr,
     ttfbMs: Math.max(1, Date.now() - startTime),
+    redirectChain,
     error: `Exceeded maximum redirect hops (${MAX_REDIRECT_HOPS}).`,
   };
 }
@@ -564,11 +606,49 @@ function isLikelyHtmlFallback(text: string): boolean {
   return /^\s*(?:<!doctype\s+html|<html\b|<head\b|<body\b)/i.test(text);
 }
 
+const DEFAULT_PROBE_BOTS: Array<{ bot: string; ua: string }> = [
+  { bot: "Googlebot", ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+  { bot: "OAI-SearchBot", ua: "Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)" },
+  { bot: "PerplexityBot", ua: "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)" },
+  { bot: "Claude-SearchBot", ua: "Mozilla/5.0 (compatible; Claude-SearchBot/1.0)" },
+  { bot: "GPTBot", ua: "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" },
+  { bot: "Google-Extended", ua: "Mozilla/5.0 (compatible; Google-Extended/1.0)" },
+  { bot: "ClaudeBot", ua: "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" },
+  { bot: "CCBot", ua: "CCBot/2.0 (https://commoncrawl.org/faq/)" },
+];
+
+export async function probeAiBotAccess(
+  targetUrl: string,
+  options: SafeFetchOptions = {},
+): Promise<BotHttpProbeResult[]> {
+  const results = await Promise.all(
+    DEFAULT_PROBE_BOTS.map(async (item) => {
+      const res = await safeFetchText(targetUrl, {
+        ...options,
+        userAgent: item.ua,
+        maxBytes: 16_384,
+      });
+      const classified = classifyBotUserAgent(item.ua);
+      const wafBlocked = res.status === 403 || res.status === 429 || res.status === 503;
+      const challengeDetected =
+        wafBlocked ||
+        /cf-browser-verification|captcha|access denied|attention required/i.test(res.text);
+      return {
+        bot: item.bot,
+        category: classified.category,
+        status: res.status,
+        wafBlocked,
+        challengeDetected,
+        ok: res.ok && !challengeDetected,
+      };
+    }),
+  );
+  return results;
+}
+
 /**
  * Probes a live external URL (/, /robots.txt, /llms.txt, /llms-full.txt) and runs
- * the deterministic 7-Layer & 4-Engine Titan readiness audit.
- * Never fabricates scores when blocked by a WAF (HTTP 403/429) or network failure,
- * and rejects SPA HTML catch-all responses masquerading as /robots.txt or /llms.txt.
+ * the deterministic 7-Layer & 4-Engine Titan readiness audit plus Enterprise 4-Layer checks.
  */
 export async function probeAndAuditLiveUrl(
   targetUrl: string,
@@ -580,12 +660,13 @@ export async function probeAndAuditLiveUrl(
   }
 
   const origin = validation.origin;
-  const [pageRes, robotsRes, llmsRes, llmsFullRes, sitemapRes] = await Promise.all([
+  const [pageRes, robotsRes, llmsRes, llmsFullRes, sitemapRes, botProbes] = await Promise.all([
     safeFetchText(validation.url.href, { ...options, maxBytes: MAX_HTML_BYTES }),
     safeFetchText(`${origin}/robots.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
     safeFetchText(`${origin}/llms.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
     safeFetchText(`${origin}/llms-full.txt`, { ...options, maxBytes: MAX_ROBOTS_BYTES }),
     safeFetchText(`${origin}/sitemap.xml`, { ...options, maxBytes: MAX_ROBOTS_BYTES * 2 }),
+    options.probeBots ? probeAiBotAccess(validation.url.href, options) : Promise.resolve(undefined),
   ]);
 
   const wafBlocked = pageRes.status === 403 || pageRes.status === 429 || pageRes.status === 503;
@@ -633,6 +714,8 @@ export async function probeAndAuditLiveUrl(
     httpStatus: pageRes.status,
     wafBlocked,
     probeError: pageRes.error,
+    redirectChain: pageRes.redirectChain,
+    botProbes,
   });
 
   return {
@@ -646,6 +729,8 @@ export async function probeAndAuditLiveUrl(
       hasLlmsFullTxt,
       hasSitemap,
       finalUrl: pageRes.finalUrl || validation.url.href,
+      redirectChain: pageRes.redirectChain,
+      botProbes,
       error: pageRes.error,
     },
     audit,

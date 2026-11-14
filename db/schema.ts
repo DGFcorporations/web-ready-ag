@@ -190,3 +190,130 @@ export const testimonials = mysqlTable("testimonials", {
 });
 
 export type Testimonial = typeof testimonials.$inferSelect;
+
+// ─── Enterprise 4-Layer Telemetry Tables (SEO / AEO / GEO / AIO) ────
+export const crawlTelemetryRuns = mysqlTable("crawl_telemetry_runs", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  logSource: varchar("log_source", { length: 32 }).notNull().default("cloudflare"),
+  totalHits: int("total_hits").notNull().default(0),
+  retrievalBotHits: int("retrieval_bot_hits").notNull().default(0),
+  trainingBotHits: int("training_bot_hits").notNull().default(0),
+  humanHits: int("human_hits").notNull().default(0),
+  non200Rate: decimal("non_200_rate", { precision: 6, scale: 2 }).notNull().default("0.00"),
+  orphanUrlsJson: json("orphan_urls_json"),
+  crawlTrapUrlsJson: json("crawl_trap_urls_json"),
+  uncrawledUrlsJson: json("uncrawled_urls_json"),
+  crawlWastePercent: decimal("crawl_waste_percent", { precision: 6, scale: 2 })
+    .notNull()
+    .default("0.00"),
+  crawlToCitationRatio: decimal("crawl_to_citation_ratio", { precision: 8, scale: 2 }),
+  summaryJson: json("summary_json"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type CrawlTelemetryRun = typeof crawlTelemetryRuns.$inferSelect;
+
+export const aiReferralEvents = mysqlTable("ai_referral_events", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  sourceHost: varchar("source_host", { length: 120 }).notNull(),
+  landingPath: varchar("landing_path", { length: 500 }).notNull(),
+  sessionsCount: int("sessions_count").notNull().default(0),
+  conversionsCount: int("conversions_count").notNull().default(0),
+  revenueAmount: decimal("revenue_amount", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0.00"),
+  recordedDate: varchar("recorded_date", { length: 10 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type AiReferralEvent = typeof aiReferralEvents.$inferSelect;
+
+export const gscExportRows = mysqlTable("gsc_export_rows", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  dataDate: varchar("data_date", { length: 10 }).notNull(),
+  urlPath: varchar("url_path", { length: 500 }).notNull(),
+  queryText: varchar("query_text", { length: 500 }),
+  clicks: int("clicks").notNull().default(0),
+  impressions: int("impressions").notNull().default(0),
+  ctr: decimal("ctr", { precision: 6, scale: 4 }).notNull().default("0.0000"),
+  avgPosition: decimal("avg_position", { precision: 6, scale: 2 }).notNull().default("0.00"),
+  bigqueryDataset: varchar("bigquery_dataset", { length: 120 }),
+  bigqueryTable: varchar("bigquery_table", { length: 120 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type GscExportRow = typeof gscExportRows.$inferSelect;
+
+export const llmPromptRuns = mysqlTable("llm_prompt_runs", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  promptText: varchar("prompt_text", { length: 500 }).notNull(),
+  stage: varchar("stage", { length: 32 }).notNull(),
+  engine: varchar("engine", { length: 32 }).notNull(),
+  citedBrand: boolean("cited_brand").notNull().default(false),
+  competitorCitations: int("competitor_citations").notNull().default(0),
+  provenance: varchar("provenance", { length: 32 }).notNull(),
+  sentiment: varchar("sentiment", { length: 24 }).notNull(),
+  responseExcerpt: text("response_excerpt"),
+  measuredAt: timestamp("measured_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type LlmPromptRun = typeof llmPromptRuns.$inferSelect;
+
+export const entityCorroborations = mysqlTable("entity_corroborations", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  sourceType: varchar("source_type", { length: 48 }).notNull(),
+  expectedJson: json("expected_json"),
+  observedJson: json("observed_json"),
+  conflictCount: int("conflict_count").notNull().default(0),
+  conflictsJson: json("conflicts_json"),
+  thirdPartyCitations90d: int("third_party_citations_90d").notNull().default(0),
+  favorableSentimentPct: decimal("favorable_sentiment_pct", { precision: 5, scale: 2 })
+    .notNull()
+    .default("0.00"),
+  checkedAt: timestamp("checked_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type EntityCorroboration = typeof entityCorroborations.$inferSelect;
+
+export const botAccessProbes = mysqlTable("bot_access_probes", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  targetUrl: varchar("target_url", { length: 500 }).notNull(),
+  botName: varchar("bot_name", { length: 64 }).notNull(),
+  botCategory: varchar("bot_category", { length: 32 }).notNull(),
+  httpStatus: int("http_status"),
+  wafBlocked: boolean("waf_blocked").notNull().default(false),
+  challengeDetected: boolean("challenge_detected").notNull().default(false),
+  robotsAllowed: boolean("robots_allowed").notNull().default(true),
+  probedAt: timestamp("probed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type BotAccessProbe = typeof botAccessProbes.$inferSelect;
+
+export const schemaVerificationJobs = mysqlTable("schema_verification_jobs", {
+  id: serial("id").primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  targetUrl: varchar("target_url", { length: 500 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending"),
+  triggerSource: varchar("trigger_source", { length: 32 }).notNull().default("manual"),
+  overallScore: int("overall_score"),
+  seoScore: int("seo_score"),
+  aeoScore: int("aeo_score"),
+  geoScore: int("geo_score"),
+  aioScore: int("aio_score"),
+  danglingRefsCount: int("dangling_refs_count").notNull().default(0),
+  reportJson: json("report_json"),
+  scheduledFor: timestamp("scheduled_for"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type SchemaVerificationJob = typeof schemaVerificationJobs.$inferSelect;

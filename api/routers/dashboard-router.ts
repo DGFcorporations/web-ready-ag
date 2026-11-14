@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { desc, sql, eq } from "drizzle-orm";
+import { desc, sql, eq, inArray } from "drizzle-orm";
 import { createRouter, adminQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { orders, leads, users, orderServices } from "@db/schema";
@@ -51,13 +51,22 @@ export const dashboardRouter = createRouter({
     }),
 
   revenueByMonth: adminQuery.query(async () => {
-    return [
-      { month: "2026-01", revenue: 8950 },
-      { month: "2026-02", revenue: 12340 },
-      { month: "2026-03", revenue: 15670 },
-      { month: "2026-04", revenue: 18900 },
-      { month: "2026-05", revenue: 22450 },
-    ];
+    const db = getDb();
+    const monthExpr = sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m')`;
+    const rows = await db
+      .select({
+        month: monthExpr,
+        revenue: sql<number>`COALESCE(SUM(${orders.amount}), 0)`,
+      })
+      .from(orders)
+      .where(inArray(orders.status, ["active", "paid", "deploying"]))
+      .groupBy(monthExpr)
+      .orderBy(monthExpr);
+
+    return rows.map((row) => ({
+      month: String(row.month),
+      revenue: Number(row.revenue),
+    }));
   }),
 
   deploymentsByStatus: adminQuery.query(async () => {

@@ -49,24 +49,32 @@ export const titanRouter = createRouter({
       z.object({
         url: z.string().min(1).max(MAX_URL_LENGTH),
         html: z.string().max(MAX_HTML_BYTES),
+        renderedHtml: z.string().max(MAX_HTML_BYTES).optional(),
         robotsTxt: z.string().max(MAX_ROBOTS_BYTES).optional(),
         hasLlmsTxt: z.boolean().optional(),
         hasLlmsFullTxt: z.boolean().optional(),
         ttfbMs: z.number().min(0).max(60_000).optional(),
         cspHeader: z.string().optional(),
         sitemapXml: z.string().optional(),
+        lcpMs: z.number().min(0).max(60_000).optional(),
+        inpMs: z.number().min(0).max(30_000).optional(),
+        cls: z.number().min(0).max(10).optional(),
       }),
     )
     .mutation(({ input }) => {
       return auditHtmlAgainstTitanStandard({
         url: input.url,
         html: input.html,
+        renderedHtml: input.renderedHtml,
         robotsTxt: input.robotsTxt,
         hasLlmsTxt: input.hasLlmsTxt ?? false,
         hasLlmsFullTxt: input.hasLlmsFullTxt ?? false,
         ttfbMs: input.ttfbMs ?? 120,
         cspHeader: input.cspHeader,
         sitemapXml: input.sitemapXml,
+        lcpMs: input.lcpMs,
+        inpMs: input.inpMs,
+        cls: input.cls,
       });
     }),
 
@@ -92,6 +100,7 @@ export const titanRouter = createRouter({
     .input(
       z.object({
         url: z.string().min(1).max(MAX_URL_LENGTH),
+        probeBots: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -103,7 +112,7 @@ export const titanRouter = createRouter({
         });
       }
 
-      return probeAndAuditLiveUrl(input.url);
+      return probeAndAuditLiveUrl(input.url, { probeBots: input.probeBots });
     }),
 
   generateArtifacts: publicQuery

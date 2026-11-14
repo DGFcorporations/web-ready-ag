@@ -9,6 +9,17 @@ import {
 } from "./titan-guards";
 import type { HumanGradeAuditResult } from "./human-audit-types";
 import { auditHumanGradePage } from "./human-auditor";
+import {
+  buildEnterpriseRobotsTxt,
+  evaluateEnterprise4Layers,
+  type BotHttpProbeResult,
+  type CanonicalEntityProfile,
+  type CrawlLogEntry,
+  type Enterprise4LayerReport,
+  type ExternalEntitySnapshot,
+  type GeoPromptRunInput,
+  type RedirectHop,
+} from "./enterprise";
 
 export interface WebAgLayerSpec {
   layerNumber: number;
@@ -40,6 +51,7 @@ export interface LayerAuditResult {
 export interface TitanAuditInput {
   url: string;
   html: string;
+  renderedHtml?: string;
   robotsTxt?: string;
   hasLlmsTxt?: boolean;
   hasLlmsFullTxt?: boolean;
@@ -50,8 +62,20 @@ export interface TitanAuditInput {
   probeError?: string;
   cspHeader?: string;
   sitemapXml?: string;
+  knownSitemapUrls?: string[];
   additionalPages?: Array<{ url: string; html: string }>;
   humanAuditResult?: HumanGradeAuditResult;
+  redirectChain?: RedirectHop[];
+  botProbes?: BotHttpProbeResult[];
+  crawlLogs?: string | CrawlLogEntry[];
+  geoPromptRuns?: GeoPromptRunInput[];
+  canonicalEntity?: CanonicalEntityProfile;
+  externalSources?: ExternalEntitySnapshot[];
+  thirdPartyCitations90d?: number;
+  favorableSentimentPct?: number;
+  lcpMs?: number;
+  inpMs?: number;
+  cls?: number;
 }
 
 export interface TitanAuditResult {
@@ -72,6 +96,7 @@ export interface TitanAuditResult {
     actions: string[];
   };
   humanGradeAudit?: HumanGradeAuditResult;
+  enterpriseAudit?: Enterprise4LayerReport;
 }
 
 export const WEB_AG_LAYERS: WebAgLayerSpec[] = [
@@ -172,85 +197,10 @@ export const TARGET_ENGINES: TargetEngineSpec[] = [
 ];
 
 export function buildCanonicalRobotsTxt(baseUrl = "https://web-ready.ag"): string {
-  return `# WEB-READY/AG Titan Multi-Engine Crawler Policy
-# Engineered for Google, Perplexity, OpenAI Search, and Brave Search (Claude)
-
-User-agent: *
-Allow: /
-
-# Surgical Query-Parameter Crawl Fence (Cleveland Clinic Pattern)
-# Prevents crawl budget waste on faceted/search URL permutations
-Disallow: /Search
-Disallow: /search
-Disallow: /*?q=*
-Disallow: /*?search=*
-Disallow: /*?filter=*
-Disallow: /*?sort=*
-Disallow: /*?date=*
-Disallow: /*?view=*
-
-# 1. Google Core & Gemini AI Overviews
-User-agent: Googlebot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-# 2. OpenAI / ChatGPT Search & Grounding
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-# 3. Perplexity AI / Sonar Real-Time Engine
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Perplexity-User
-Allow: /
-
-# 4. Brave Search & Anthropic Claude (86.7% Citation Overlap)
-User-agent: BraveBot
-Allow: /
-
-User-agent: Claude-SearchBot
-Allow: /
-
-User-agent: Claude-User
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-# 5. Bing, Apple, Meta & Cohere Ecosystem Crawlers
-User-agent: Bingbot
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: meta-externalagent
-Allow: /
-
-User-agent: cohere-ai
-Allow: /
-
-User-agent: AI2Bot
-Allow: /
-
-Sitemap: ${baseUrl}/sitemap.xml
-LLMs: ${baseUrl}/llms.txt
-LLMs-Full: ${baseUrl}/llms-full.txt
+  const cleanOrigin = baseUrl.replace(/\/+$/, "");
+  return `${buildEnterpriseRobotsTxt(cleanOrigin).trimEnd()}
+LLMs: ${cleanOrigin}/llms.txt
+LLMs-Full: ${cleanOrigin}/llms-full.txt
 `;
 }
 
@@ -580,6 +530,26 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
         ],
       };
 
+  const enterpriseAudit = evaluateEnterprise4Layers({
+    url: input.url,
+    html,
+    renderedHtml: input.renderedHtml,
+    robotsTxt: robots,
+    sitemapXml: input.sitemapXml,
+    knownSitemapUrls: input.knownSitemapUrls,
+    redirectChain: input.redirectChain,
+    botProbes: input.botProbes,
+    crawlLogs: input.crawlLogs,
+    geoPromptRuns: input.geoPromptRuns,
+    canonicalEntity: input.canonicalEntity,
+    externalSources: input.externalSources,
+    thirdPartyCitations90d: input.thirdPartyCitations90d,
+    favorableSentimentPct: input.favorableSentimentPct,
+    lcpMs: input.lcpMs ?? humanGradeAudit?.mobileVitals.lcpMs,
+    inpMs: input.inpMs ?? humanGradeAudit?.mobileVitals.inpMs,
+    cls: input.cls ?? humanGradeAudit?.mobileVitals.cls,
+  });
+
   return {
     url: input.url,
     overallScore,
@@ -587,5 +557,6 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     layers,
     nextSingleLayerToExecute,
     humanGradeAudit,
+    enterpriseAudit,
   };
 }

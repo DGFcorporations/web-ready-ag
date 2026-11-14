@@ -6,35 +6,61 @@ import {
   resolveCityWikidataUri,
   WIKIDATA_ENTITIES,
 } from "./json-ld";
+import { ALL_COMPARISON_SPECS } from "./compare-catalog";
 
 const BASE_URL = "https://web-ready.ag";
 
-export const AI_CRAWLER_PATTERNS = [
-  "gptbot",
-  "chatgpt-user",
+export const AI_RETRIEVAL_CRAWLER_PATTERNS = [
   "oai-searchbot",
+  "chatgpt-user",
   "perplexitybot",
   "perplexity-user",
-  "claudebot",
   "claude-searchbot",
   "claude-user",
-  "claude-web",
-  "claude",
-  "anthropic-ai",
-  "google-extended",
-  "googlebot-image",
   "bravebot",
-  "applebot-extended",
   "duckassistbot",
+  "applebot",
+];
+
+export const AI_TRAINING_CRAWLER_PATTERNS = [
+  "gptbot",
+  "google-extended",
+  "ccbot",
+  "anthropic-ai",
+  "claudebot",
+  "claude-web",
+  "applebot-extended",
+  "amazonbot",
   "bytespider",
   "cohere-ai",
   "meta-externalagent",
   "ai2bot",
 ];
 
-export function isAiCrawler(userAgent: string): boolean {
+export const AI_CRAWLER_PATTERNS = [
+  ...AI_RETRIEVAL_CRAWLER_PATTERNS,
+  ...AI_TRAINING_CRAWLER_PATTERNS,
+  "claude",
+  "googlebot-image",
+];
+
+export function classifyAiCrawler(userAgent: string): "retrieval" | "training" | "other_ai" | "non_ai" {
   const ua = userAgent.toLowerCase();
-  return AI_CRAWLER_PATTERNS.some((pattern) => ua.includes(pattern));
+  // Check training substrings before generic prefix collisions (e.g. applebot-extended before applebot, claude-web before claude)
+  if (AI_TRAINING_CRAWLER_PATTERNS.some((pattern) => ua.includes(pattern))) {
+    return "training";
+  }
+  if (AI_RETRIEVAL_CRAWLER_PATTERNS.some((pattern) => ua.includes(pattern))) {
+    return "retrieval";
+  }
+  if (AI_CRAWLER_PATTERNS.some((pattern) => ua.includes(pattern))) {
+    return "other_ai";
+  }
+  return "non_ai";
+}
+
+export function isAiCrawler(userAgent: string): boolean {
+  return classifyAiCrawler(userAgent) !== "non_ai";
 }
 
 export async function buildAeoPayload(pathname: string): Promise<object | null> {
@@ -55,11 +81,11 @@ export async function buildAeoPayload(pathname: string): Promise<object | null> 
         url: `${BASE_URL}/`,
         wikidataEntity: WIKIDATA_ENTITIES.searchEngineOptimization,
         targetEngines: ["Google", "Perplexity", "OpenAI", "Brave Search (Claude)"],
-        architecture: "WebReady-AG 7-Layer Single-Layer Engine",
+        architecture: "WEB-READY/AG Enterprise 4-Layer Engine (SEO + AEO + GEO + AIO)",
         organization: buildOrganizationJsonLd(),
         infobox: [
           { label: "Platform", value: "WEB-READY/AG" },
-          { label: "Architecture", value: "7-Layer Autonomous Single-Layer Engine" },
+          { label: "Architecture", value: "Enterprise 4-Layer Engine (SEO + AEO + GEO + AIO)" },
           { label: "Wikidata Entity Q-ID", value: WIKIDATA_ENTITIES.searchEngineOptimization },
           { label: "Target Engines", value: "Google, Perplexity, OpenAI, Brave Search (Claude)" },
         ],
@@ -133,16 +159,30 @@ export async function buildAeoPayload(pathname: string): Promise<object | null> 
     }
   }
 
-  // Static routes: return basic info
+  // Static routes + /compare* down-funnel guides
+  const compareRoute = ALL_COMPARISON_SPECS.find((spec) => spec.path === pathname);
+  if (compareRoute) {
+    return {
+      type: "comparison",
+      url: compareRoute.canonical,
+      title: compareRoute.title,
+      description: compareRoute.answerCapsule,
+      wikidataEntity: compareRoute.wikidataUri,
+      lastUpdated: compareRoute.lastUpdated,
+      targetEngines: ["Google", "Perplexity", "OpenAI", "Brave Search (Claude)"],
+      rows: compareRoute.rows,
+    };
+  }
+
   const staticRoutes: Record<string, { title: string; description: string; wikidataEntity: string }> = {
     "/services": {
       title: "AI Automation Services",
-      description: "Voice AI, outreach, CRM, reviews, 7-layer SEO/AEO/GEO, and AI assistants.",
+      description: "Voice AI, outreach, CRM, reviews, Enterprise 4-Layer SEO/AEO/GEO/AIO, and AI assistants.",
       wikidataEntity: WIKIDATA_ENTITIES.softwareAgent,
     },
     "/pricing": {
       title: "Pricing",
-      description: "Transparent pricing for AI automation and 7-layer search dominance.",
+      description: "Transparent pricing for AI automation and Enterprise 4-Layer search visibility.",
       wikidataEntity: WIKIDATA_ENTITIES.searchEngineOptimization,
     },
     "/locations": {
@@ -152,7 +192,7 @@ export async function buildAeoPayload(pathname: string): Promise<object | null> 
     },
     "/blog": {
       title: "Blog",
-      description: "AI automation insights.",
+      description: "AI automation and Enterprise 4-Layer search visibility insights.",
       wikidataEntity: WIKIDATA_ENTITIES.knowledgeGraph,
     },
   };

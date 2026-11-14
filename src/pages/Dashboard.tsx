@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import Navigation from "@/components/Navigation";
 import SEO from "@/components/SEO";
@@ -5,14 +6,22 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import TitanEngineMatrix from "@/sections/TitanEngineMatrix";
-import { Package, CreditCard, Settings, ArrowRight, Loader2 } from "lucide-react";
+import { Package, CreditCard, Settings, ArrowRight, Loader2, ShieldCheck, Activity, Database, Sparkles } from "lucide-react";
+
+type EnterpriseDashboardTab = "kpi" | "hydration" | "logs" | "prompts";
 
 export default function Dashboard() {
   const { user, isLoading: authLoading } = useAuth();
+  const [enterpriseTab, setEnterpriseTab] = useState<EnterpriseDashboardTab>("kpi");
   const { data: orders, isLoading: ordersLoading } = trpc.order.myOrders.useQuery(
     undefined,
     { enabled: !!user }
   );
+  const { data: governancePolicy } = trpc.enterprise.getGovernancePolicy.useQuery();
+  const { data: telemetrySummary, isLoading: telemetryLoading } =
+    trpc.enterprise.listTelemetrySummary.useQuery(undefined, {
+      enabled: user?.role === "admin",
+    });
 
   if (authLoading) {
     return (
@@ -22,6 +31,153 @@ export default function Dashboard() {
     );
   }
 
+  const EnterpriseTelemetryPanel = (
+    <section
+      aria-labelledby="enterprise-4layer-heading"
+      className="px-6 lg:px-10 pb-12"
+    >
+      <div className="max-w-[1280px] mx-auto bg-[#141414] border border-[#2A2A2A] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#C8A45C]">
+              Enterprise 4-Layer Telemetry
+            </span>
+            <h2 id="enterprise-4layer-heading" className="text-white font-bold text-[20px] mt-1">
+              SEO / AEO / GEO / AIO Control Surface
+            </h2>
+          </div>
+          <div role="tablist" aria-label="Enterprise telemetry views" className="flex flex-wrap gap-2">
+            {(
+              [
+                { id: "kpi", label: "KPI & Governance", Icon: ShieldCheck },
+                { id: "hydration", label: "Hydration & Bots", Icon: Activity },
+                { id: "logs", label: "Server Logs & GSC", Icon: Database },
+                { id: "prompts", label: "LLM Prompt Matrix", Icon: Sparkles },
+              ] as const
+            ).map(({ id, label, Icon }) => {
+              const selected = enterpriseTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setEnterpriseTab(id)}
+                  className={
+                    selected
+                      ? "inline-flex items-center gap-1.5 px-3 py-2 bg-[#C8A45C] text-[#0A0A0A] font-mono text-[12px] font-semibold"
+                      : "inline-flex items-center gap-1.5 px-3 py-2 border border-[#2A2A2A] bg-[#0A0A0A] text-[#A3A3A3] font-mono text-[12px] hover:border-[#C8A45C] hover:text-white"
+                  }
+                >
+                  <Icon size={13} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {enterpriseTab === "kpi" && (
+          <div role="tabpanel" aria-label="KPI and Governance" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+              <div className="text-[11px] font-mono uppercase text-[#8A8A8A]">Training Bot Policy</div>
+              <div className="text-white font-semibold mt-1">
+                {governancePolicy?.trainingAllowPolicy ?? "ALLOW_EXPLICIT_ZERO_PENALTY"}
+              </div>
+              <p className="text-[#A3A3A3] text-[12px] mt-2">
+                {governancePolicy
+                  ? `${governancePolicy.retrievalBots.length} retrieval bots + ${governancePolicy.trainingBots.length} training bots explicitly allowed.`
+                  : "Separated search retrieval and model training crawlers configured."}
+              </p>
+            </div>
+            <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+              <div className="text-[11px] font-mono uppercase text-[#8A8A8A]">Live Reference Rate</div>
+              <div className="text-white font-semibold mt-1">
+                {user?.role === "admin"
+                  ? telemetryLoading
+                    ? "Loading..."
+                    : telemetrySummary?.promptBenchmark
+                      ? `${telemetrySummary.promptBenchmark.referenceRatePct.toFixed(1)}%`
+                      : "Unconfigured — 0 prompt runs recorded"
+                  : "Admin sign-in required"}
+              </div>
+              <p className="text-[#A3A3A3] text-[12px] mt-2">
+                Zero fabricated metrics: requires recorded multi-LLM prompt runs.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+              <div className="text-[11px] font-mono uppercase text-[#8A8A8A]">GA4 AI Referral Group</div>
+              <div className="text-white font-semibold mt-1">
+                {governancePolicy?.ga4CustomChannelRule.channelName ?? "AI Search & LLM Referrals"}
+              </div>
+              <p className="text-[#A3A3A3] text-[12px] mt-2 break-all">
+                {(governancePolicy?.ga4AiReferralDomains ?? ["chatgpt.com", "perplexity.ai"]).slice(0, 4).join(", ")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {enterpriseTab === "hydration" && (
+          <div role="tabpanel" aria-label="Hydration and Bots" className="space-y-3 text-[13px] text-[#D4D4D4]">
+            <p className="font-mono text-[12px] text-[#C8A45C]">
+              Hydration Parity Budget: SSR/Hydrated word ratio &gt;= 85%, zero client-only schema, mobile LCP &lt; 1800ms.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+                <div className="text-white font-semibold mb-2">Search Retrieval Bots (Allow: /)</div>
+                <p className="text-[#A3A3A3] font-mono text-[12px]">
+                  {governancePolicy?.retrievalBots.map((b) => b.id).join(", ") || "OAI-SearchBot, PerplexityBot, Claude-SearchBot"}
+                </p>
+              </div>
+              <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+                <div className="text-white font-semibold mb-2">Model Training Bots (Explicit Allow: /)</div>
+                <p className="text-[#A3A3A3] font-mono text-[12px]">
+                  {governancePolicy?.trainingBots.map((b) => b.id).join(", ") || "GPTBot, Google-Extended, CCBot, ClaudeBot"}
+                </p>
+              </div>
+            </div>
+            <p className="text-[#8A8A8A] text-[12px]">
+              Recorded bot probes:{" "}
+              {user?.role === "admin"
+                ? telemetrySummary?.botProbes.length ?? 0
+                : "Sign in as admin to view persisted HTTP probe logs."}
+            </p>
+          </div>
+        )}
+
+        {enterpriseTab === "logs" && (
+          <div role="tabpanel" aria-label="Server Logs and GSC" className="space-y-3 text-[13px] text-[#D4D4D4]">
+            <p className="font-mono text-[12px] text-[#C8A45C]">
+              GSC BigQuery Tables: {governancePolicy?.gscBigQueryTables.join(", ") || "searchdata_site_impression, searchdata_url_impression"}
+            </p>
+            <p className="text-[#A3A3A3]">
+              {user?.role === "admin"
+                ? telemetrySummary && (telemetrySummary.latestCrawl.length > 0 || telemetrySummary.gscRows.length > 0)
+                  ? `Crawl telemetry runs: ${telemetrySummary.latestCrawl.length} | GSC export rows: ${telemetrySummary.gscRows.length}`
+                  : "Server log analyzer & GSC BigQuery pipeline status: unconfigured (awaiting NDJSON/W3C log or BigQuery export ingestion)."
+                : "Sign in as admin to inspect ingested server crawl logs and GSC BigQuery exports."}
+            </p>
+          </div>
+        )}
+
+        {enterpriseTab === "prompts" && (
+          <div role="tabpanel" aria-label="LLM Prompt Matrix" className="space-y-3 text-[13px] text-[#D4D4D4]">
+            <p className="font-mono text-[12px] text-[#C8A45C]">
+              Multi-LLM Benchmark Matrix: 25–100+ real buyer prompts across Awareness, Consideration, and Decision.
+            </p>
+            <p className="text-[#A3A3A3]">
+              {user?.role === "admin"
+                ? telemetrySummary?.promptBenchmark
+                  ? `Total runs: ${telemetrySummary.promptBenchmark.totalRuns} | Reference Rate: ${telemetrySummary.promptBenchmark.referenceRatePct.toFixed(1)}% | Share of Model: ${telemetrySummary.promptBenchmark.shareOfModelPct.toFixed(1)}%`
+                  : "Multi-LLM prompt tracking status: unconfigured (0 prompt runs ingested in DB)."
+                : "Sign in as admin to inspect multi-LLM Share of Model and citation provenance telemetry."}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+
   if (!user) {
     return (
       <div className="bg-[#0A0A0A] min-h-screen">
@@ -29,11 +185,12 @@ export default function Dashboard() {
         <Navigation />
         <div className="pt-32 pb-12 px-6 text-center">
           <h1 className="text-white text-2xl font-bold mb-4">Please Sign In</h1>
-          <p className="text-[#8A8A8A] mb-6">Sign in to view your orders, or use the 7-Layer Dominance Workbench below.</p>
+          <p className="text-[#8A8A8A] mb-6">Sign in to view your orders, or use the Enterprise 4-Layer Search Visibility Workbench below.</p>
           <Link to="/login" className="bg-[#C8A45C] text-[#0A0A0A] px-8 py-3 font-semibold hover:bg-[#D4BC7E] transition-colors">
             Sign In
           </Link>
         </div>
+        {EnterpriseTelemetryPanel}
         <TitanEngineMatrix compact />
         <Footer />
       </div>
@@ -163,6 +320,7 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+      {EnterpriseTelemetryPanel}
       <TitanEngineMatrix compact />
       <Footer />
     </div>

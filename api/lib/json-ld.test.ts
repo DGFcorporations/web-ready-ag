@@ -31,7 +31,7 @@ describe("JSON-LD generators (Titan-Upgraded)", () => {
       metaTitle: "AI Automation Miami",
       metaDescription: "Serving Miami.",
     };
-    const result = buildLocalBusinessJsonLd(geoPage as any);
+    const result = buildLocalBusinessJsonLd(geoPage as Parameters<typeof buildLocalBusinessJsonLd>[0]);
     expect(result["@type"]).toBe("LocalBusiness");
     expect(result.name).toContain("WEB-READY/AG");
     expect(result.address.addressLocality).toBe("Miami");
@@ -49,7 +49,7 @@ describe("JSON-LD generators (Titan-Upgraded)", () => {
       shortDesc: "AI-powered phone receptionist",
       fullDesc: "Full description here",
     };
-    const result = buildServiceJsonLd(service as any);
+    const result = buildServiceJsonLd(service as Parameters<typeof buildServiceJsonLd>[0]);
     expect(result["@type"]).toBe("Service");
     expect(result.name).toBe("Voice AI Receptionist");
     expect(result.description).toBe("Full description here");
@@ -68,7 +68,7 @@ describe("JSON-LD generators (Titan-Upgraded)", () => {
       publishedAt: new Date("2026-09-01T00:00:00Z"),
       featuredImage: "https://web-ready.ag/img/test.jpg",
     };
-    const result = buildBlogPostingJsonLd(post as any);
+    const result = buildBlogPostingJsonLd(post as Parameters<typeof buildBlogPostingJsonLd>[0]);
     expect(result["@type"]).toBe("BlogPosting");
     expect(result.headline).toBe("Test Post");
     expect(result.author.name).toBe("Josh");

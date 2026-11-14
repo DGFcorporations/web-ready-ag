@@ -34,16 +34,20 @@ export default function SEO({ title, description, canonical, ogImage, jsonLd }: 
     }
 
     if (canonical) {
-      const link = document.querySelector('link[rel="canonical"]');
-      if (link) {
-        link.setAttribute('href', canonical);
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', 'canonical');
+        document.head.appendChild(link);
       }
+      const normalizedCanonical =
+        canonical === 'https://web-ready.ag' ? 'https://web-ready.ag/' : canonical;
+      link.setAttribute('href', normalizedCanonical);
     }
 
-    // Inject JSON-LD: remove old dynamic JSON-LD, add new
+    // Inject JSON-LD: always remove old dynamic JSON-LD before optional re-injection
+    document.querySelectorAll('script[data-dynamic-jsonld]').forEach(el => el.remove());
     if (jsonLd && jsonLd.length > 0) {
-      // Remove previously injected dynamic JSON-LD blocks
-      document.querySelectorAll('script[data-dynamic-jsonld]').forEach(el => el.remove());
       jsonLd.forEach(obj => {
         const script = document.createElement('script');
         script.type = 'application/ld+json';

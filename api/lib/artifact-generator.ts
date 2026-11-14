@@ -145,6 +145,21 @@ function buildLayer2JsonLdGraph(params: {
       publisher: { "@id": `${origin}/#organization` },
     },
     {
+      "@type": "Person",
+      "@id": `${origin}/#person-lead`,
+      name: "Search Architecture Lead",
+      jobTitle: `${niche} Systems Architect`,
+      worksFor: { "@id": `${origin}/#organization` },
+      hasCredential: {
+        "@type": "EducationalOccupationalCredential",
+        credentialCategory: "Enterprise 4-Layer Search Architecture Verification",
+      },
+      sameAs: [
+        "https://www.linkedin.com/company/web-ready-ag",
+        "https://www.wikidata.org/entity/Q180711",
+      ],
+    },
+    {
       "@type": "WebPage",
       "@id": `${origin}/#webpage`,
       url: `${origin}/`,
@@ -156,7 +171,23 @@ function buildLayer2JsonLdGraph(params: {
       mainEntity: WIKIDATA_ENTITIES.searchEngineOptimization,
       isPartOf: { "@id": `${origin}/#website` },
       about: { "@id": `${origin}/#organization` },
+      author: { "@id": `${origin}/#person-lead` },
       citation: PRIMARY_AUTHORITY_CITATIONS,
+    },
+    {
+      "@type": "FAQPage",
+      "@id": `${origin}/#faq`,
+      isPartOf: { "@id": `${origin}/#webpage` },
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: `What is ${brandName} and what services does it provide in ${city}?`,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: `${brandName} delivers ${niche} in ${city}, ${state} (${services.join(", ")}) with transparent pricing starting at ${startingPrice}.`,
+          },
+        },
+      ],
     },
   ]);
 
@@ -242,8 +273,9 @@ function buildLayer5InfoboxAndFanOutHtml(params: {
   cityWikidata: string;
   services: string[];
   startingPrice: string;
+  dateModified: string;
 }): string {
-  const { origin, brandName, niche, city, state, cityWikidata, services, startingPrice } = params;
+  const { origin, brandName, niche, city, state, cityWikidata, services, startingPrice, dateModified } = params;
   const summaryLead = `${brandName} delivers ${niche} in ${city}, ${state} (${services.join(", ")}) with transparent pricing starting at ${startingPrice}.`;
 
   return [
@@ -252,6 +284,7 @@ function buildLayer5InfoboxAndFanOutHtml(params: {
     `    <header class="ag-entity-header">`,
     `      <h1>${escapeHtml(brandName)} | ${escapeHtml(niche)} in ${escapeHtml(city)}, ${escapeHtml(state)}</h1>`,
     `      <p class="ag-summary-lead">${escapeHtml(summaryLead)}</p>`,
+    `      <p class="ag-freshness">Last Updated: <time datetime="${escapeHtml(dateModified)}">${escapeHtml(dateModified)}</time></p>`,
     `    </header>`,
     `    <table class="entity-infobox" aria-label="Entity Summary Infobox">`,
     `      <tbody>`,
@@ -264,19 +297,24 @@ function buildLayer5InfoboxAndFanOutHtml(params: {
     `        <tr><th scope="row">Target Retrieval Engines</th><td>Google, Perplexity, OpenAI, Brave Search (Claude)</td></tr>`,
     `      </tbody>`,
     `    </table>`,
+    `    <nav class="ag-summary-anchors" aria-label="On this page">`,
+    `      <a href="#faq-overview">Entity Overview</a>`,
+    `      <a href="#faq-pricing">Transparent Pricing</a>`,
+    `      <a href="#faq-citations">AI Citation Standards</a>`,
+    `    </nav>`,
     `    <section class="query-fanout-tree">`,
     `      <h2>Overview &amp; Common Questions</h2>`,
-    `      <div class="fanout-item">`,
+    `      <div id="faq-overview" class="fanout-item">`,
     `        <h3>What is ${escapeHtml(brandName)} and what services does it provide in ${escapeHtml(city)}?</h3>`,
-    `        <p>${escapeHtml(summaryLead)}</p>`,
+    `        <p>${escapeHtml(brandName)} provides verified ${escapeHtml(niche)} across ${escapeHtml(city)}, ${escapeHtml(state)}, covering ${escapeHtml(services.join(", "))} starting at ${escapeHtml(startingPrice)}. Every deployment binds server-rendered HTML, connected Wikidata @graph schemas, and explicit retrieval plus training bot permissions to achieve sub-1.8 second mobile vitals and deterministic citation fidelity.</p>`,
     `      </div>`,
-    `      <div class="fanout-item">`,
+    `      <div id="faq-pricing" class="fanout-item">`,
     `        <h3>How much does ${escapeHtml(services[0] || niche)} cost at ${escapeHtml(brandName)}?</h3>`,
-    `        <p>Verified first-party pricing for ${escapeHtml(services[0] || niche)} in ${escapeHtml(city)}, ${escapeHtml(state)} starts at ${escapeHtml(startingPrice)} with full deliverables published in our OfferCatalog.</p>`,
+    `        <p>Verified first-party pricing for ${escapeHtml(services[0] || niche)} at ${escapeHtml(brandName)} in ${escapeHtml(city)}, ${escapeHtml(state)} starts at ${escapeHtml(startingPrice)} with zero opaque fees. Full deliverables, service-level guarantees, and schema verification schedules publish directly inside the OfferCatalog ledger so buyers and AI answer engines confirm exact numbers immediately.</p>`,
     `      </div>`,
-    `      <div class="fanout-item">`,
+    `      <div id="faq-citations" class="fanout-item">`,
     `        <h3>Why do Google, Perplexity, OpenAI, and Brave Search cite ${escapeHtml(brandName)}?</h3>`,
-    `        <p>${escapeHtml(brandName)} publishes pre-rendered Top-of-DOM entity infobox tables, Wikidata Q-ID @graph schemas, and primary authority citations.</p>`,
+    `        <p>${escapeHtml(brandName)} eliminates JavaScript hydration delays by delivering Top-of-DOM entity infoboxes, connected Wikidata @graph JSON-LD nodes, visible freshness timestamps, and primary authority citations inside initial HTML bytes. Explicit permissions for OpenAI SearchBot, PerplexityBot, Claude-SearchBot, and GPTBot guarantee reliable indexing without anti-bot WAF friction or ranking penalties.</p>`,
     `      </div>`,
     `    </section>`,
     `  </article>`,
@@ -338,6 +376,7 @@ export function generateTitanLayerArtifacts(input: ArtifactGeneratorInput): Tita
     cityWikidata,
     services,
     startingPrice,
+    dateModified,
   });
 
   const llmsTxt = [

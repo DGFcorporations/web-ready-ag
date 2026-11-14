@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "jsdom": path.resolve(__dirname, "./src/lib/browser-jsdom-shim.ts"),
       "@contracts": path.resolve(__dirname, "./contracts"),
       "@db": path.resolve(__dirname, "./db"),
       "db": path.resolve(__dirname, "./db"),

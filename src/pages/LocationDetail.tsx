@@ -3,7 +3,7 @@ import Navigation from "@/components/Navigation";
 import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
 import { trpc } from "@/providers/trpc";
-import { MapPin, Phone, ArrowLeft, ArrowRight } from "lucide-react";
+import { MapPin, Mail, ArrowLeft, ArrowRight } from "lucide-react";
 
 export default function LocationDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -123,7 +123,7 @@ export default function LocationDetail() {
               Book Free Strategy Call <ArrowRight size={14} />
             </Link>
             <div className="mt-4 flex items-center justify-center gap-2 text-white/60 text-[13px]">
-              <Phone size={14} /> (904) 555-0147
+              <Mail size={14} /> hello@dgfcorporations.com
             </div>
           </div>
         </div>

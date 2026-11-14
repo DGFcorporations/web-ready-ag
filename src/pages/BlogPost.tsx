@@ -47,12 +47,40 @@ export default function BlogPost() {
     );
   }
 
+  const modifiedSource =
+    (post as { updatedAt?: Date | string | null }).updatedAt ?? post.publishedAt;
+  const modifiedIso = modifiedSource
+    ? new Date(modifiedSource).toISOString().slice(0, 10)
+    : undefined;
+  const postJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "@id": `https://web-ready.ag/blog/${post.slug}#article`,
+      headline: post.title,
+      description:
+        post.metaDescription || post.excerpt || `${post.title} — WEB-READY/AG`,
+      url: `https://web-ready.ag/blog/${post.slug}`,
+      datePublished: post.publishedAt
+        ? new Date(post.publishedAt).toISOString().slice(0, 10)
+        : undefined,
+      dateModified: modifiedIso,
+      author: {
+        "@type": "Person",
+        name: post.author || "WEB-READY/AG Editorial Team",
+        worksFor: { "@id": "https://web-ready.ag/#organization" },
+      },
+      publisher: { "@id": "https://web-ready.ag/#organization" },
+    },
+  ];
+
   return (
     <div className="bg-[#0A0A0A] min-h-screen">
       <SEO
         title={post.metaTitle || `${post.title} | WEB-READY/AG`}
         description={post.metaDescription || post.excerpt || `${post.title} — WEB-READY/AG blog`}
         canonical={`https://web-ready.ag/blog/${post.slug}`}
+        jsonLd={postJsonLd}
       />
       <Navigation />
       <article className="pt-32 pb-24 px-6 lg:px-10">
@@ -77,7 +105,7 @@ export default function BlogPost() {
             {post.title}
           </h1>
 
-          <div className="flex items-center gap-4 mt-4 text-[#8A8A8A] text-[13px]">
+          <div className="flex flex-wrap items-center gap-4 mt-4 text-[#8A8A8A] text-[13px]">
             {post.author && (
               <span className="flex items-center gap-1">
                 <User size={12} /> {post.author}
@@ -91,6 +119,11 @@ export default function BlogPost() {
                   month: "long",
                   day: "numeric",
                 })}
+              </span>
+            )}
+            {modifiedIso && (
+              <span className="font-mono text-[12px] text-[#C8A45C]">
+                Last Updated: <time dateTime={modifiedIso}>{modifiedIso}</time>
               </span>
             )}
           </div>

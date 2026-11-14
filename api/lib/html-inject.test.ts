@@ -119,7 +119,7 @@ describe("resolveRouteMeta", () => {
     expect(meta).not.toBeNull();
     expect(meta!.canonical).toBe("https://web-ready.ag/");
     expect(meta!.title).toContain("WEB-READY/AG");
-    expect(meta!.jsonLd?.some((n: any) => n["@type"] === "WebPage")).toBe(true);
+    expect(meta!.jsonLd?.some((n) => (n as Record<string, unknown>)["@type"] === "WebPage")).toBe(true);
   });
 
   it("returns location meta for /locations/:slug with Wikidata Q-ID and infobox", async () => {
@@ -137,13 +137,13 @@ describe("resolveRouteMeta", () => {
           findFirst: vi.fn().mockResolvedValue(mockPage),
         },
       },
-    } as any);
+    } as unknown as ReturnType<typeof getDb>);
 
     const meta = await resolveRouteMeta("/locations/miami");
     expect(meta).not.toBeNull();
     expect(meta!.title).toBe("AI Automation Miami");
     expect(meta!.canonical).toBe("https://web-ready.ag/locations/miami");
-    expect(meta!.wikidataUri).toBe("http://www.wikidata.org/entity/Q8652");
+    expect(meta!.wikidataUri).toBe("https://www.wikidata.org/entity/Q8652");
     expect(meta!.infobox?.length).toBeGreaterThan(0);
     expect(meta!.fanOutQuestions?.length).toBeGreaterThan(0);
   });
@@ -151,5 +151,29 @@ describe("resolveRouteMeta", () => {
   it("returns null for unknown routes", async () => {
     const meta = await resolveRouteMeta("/this-does-not-exist");
     expect(meta).toBeNull();
+  });
+
+  it("resolves all /compare* sitemap routes with unique self-referencing canonicals and full @graph", async () => {
+    for (const path of [
+      "/compare",
+      "/compare/enterprise-aeo",
+      "/compare/traditional-seo-vs-4layer",
+      "/compare/geo-prompt-benchmarking",
+    ]) {
+      const meta = await resolveRouteMeta(path);
+      expect(meta).not.toBeNull();
+      expect(meta!.canonical).toBe(`https://web-ready.ag${path}`);
+      const graphBlock = meta!.jsonLd?.find((n) => Array.isArray((n as Record<string, unknown>)["@graph"])) as
+        | { "@graph": Array<Record<string, unknown>> }
+        | undefined;
+      expect(graphBlock).toBeDefined();
+      const types = graphBlock!["@graph"].map((n) => n["@type"]);
+      expect(types).toContain("Organization");
+      expect(types).toContain("WebSite");
+      expect(types).toContain("Person");
+      expect(types).toContain("WebPage");
+      expect(types).toContain("FAQPage");
+      expect(types).toContain("BreadcrumbList");
+    }
   });
 });

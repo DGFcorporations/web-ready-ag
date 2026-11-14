@@ -9,6 +9,7 @@ const Locations = lazy(() => import("@/pages/Locations"));
 const LocationDetail = lazy(() => import("@/pages/LocationDetail"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
+const Compare = lazy(() => import("@/pages/Compare"));
 const Checkout = lazy(() => import("@/pages/Checkout"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Admin = lazy(() => import("@/pages/Admin"));
@@ -27,6 +28,8 @@ function App() {
           <Route path="/locations/:slug" element={<LocationDetail />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/compare/:slug" element={<Compare />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<Admin />} />

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -50,8 +50,10 @@ export default function CTASection() {
           Book Free Strategy Call
         </Link>
         <div className="mt-4 flex items-center justify-center gap-2 text-[#8A8A8A] text-[14px]">
-          <Phone size={14} />
-          <span>Or call us at (904) 555-0147</span>
+          <Mail size={14} />
+          <a href="mailto:hello@dgfcorporations.com" className="hover:text-white transition-colors">
+            hello@dgfcorporations.com
+          </a>
         </div>
         <div className="mt-8 flex flex-wrap justify-center gap-6">
           {["No commitment required", "15-minute call", "Florida-based team"].map(

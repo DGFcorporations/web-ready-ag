@@ -55,9 +55,9 @@ describe("buildAeoPayload & buildAeoMarkdownPayload", () => {
         services: { findMany: vi.fn().mockResolvedValue([]) },
         geoPages: { findMany: vi.fn().mockResolvedValue([]) },
       },
-    } as any);
+    } as unknown as ReturnType<typeof getDb>);
 
-    const payload = (await buildAeoPayload("/")) as any;
+    const payload = (await buildAeoPayload("/")) as Record<string, unknown>;
     expect(payload).not.toBeNull();
     expect(payload.url).toBe("https://web-ready.ag/");
     expect(payload.type).toBe("knowledge_graph");
@@ -78,13 +78,13 @@ describe("buildAeoPayload & buildAeoMarkdownPayload", () => {
       query: {
         geoPages: { findFirst: vi.fn().mockResolvedValue(mockPage) },
       },
-    } as any);
+    } as unknown as ReturnType<typeof getDb>);
 
-    const payload = (await buildAeoPayload("/locations/miami")) as any;
+    const payload = (await buildAeoPayload("/locations/miami")) as Record<string, unknown>;
     expect(payload).not.toBeNull();
     expect(payload.type).toBe("local_business");
     expect(payload.city).toBe("Miami");
-    expect(payload.wikidataEntity).toBe("http://www.wikidata.org/entity/Q8652");
+    expect(payload.wikidataEntity).toBe("https://www.wikidata.org/entity/Q8652");
   });
 
   it("builds Markdown payload with Top-of-DOM Infobox table for /services", async () => {

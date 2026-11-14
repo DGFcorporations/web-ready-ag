@@ -25,7 +25,7 @@ import {
   type TitanArtifactBundle,
 } from "../../api/lib/artifact-generator";
 
-type WorkbenchTab = "pipeline" | "auditor" | "generator";
+type WorkbenchTab = "pipeline" | "auditor" | "generator" | "enterprise";
 type AuditMode = "live" | "raw";
 
 const DEFAULT_GENERATOR_INPUT = {
@@ -388,7 +388,199 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
           >
             <Code2 size={14} /> Layer 1–7 Code Generator
           </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === "enterprise"}
+            onClick={() => setActiveTab("enterprise")}
+            className={`px-5 py-3 font-mono text-[12px] uppercase tracking-[0.08em] flex items-center gap-2 border-b-2 transition-colors focus-visible:outline-2 focus-visible:outline-[#C8A45C] focus-visible:outline-offset-2 ${
+              activeTab === "enterprise"
+                ? "border-[#C8A45C] text-white bg-[#141414]"
+                : "border-transparent text-[#8A8A8A] hover:text-white"
+            }`}
+          >
+            <span className="text-[#C8A45C]" aria-hidden="true">4L</span> 4-Layer Enterprise Audit
+          </button>
         </div>
+
+        {/* ENTERPRISE 4-LAYER TAB */}
+        {activeTab === "enterprise" && auditResult.enterpriseAudit && (
+          <div className="space-y-6 mb-10">
+            <div className="bg-[#141414] border border-[#2A2A2A] p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-white text-[20px] font-bold">
+                    Enterprise 4-Layer Search Visibility Diagnostics
+                  </h3>
+                  <p className="text-[#8A8A8A] text-[13px] mt-1">
+                    SEO crawl & hydration parity, AEO answer capsules & connected @graph, GEO density & multi-LLM tracking, and AIO separated bot governance.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#8A8A8A]">
+                    Enterprise Score
+                  </div>
+                  <div className="text-[#C8A45C] text-[28px] font-black">
+                    {auditResult.enterpriseAudit.overallScore}/100
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {(
+                  [
+                    auditResult.enterpriseAudit.layers.seo,
+                    auditResult.enterpriseAudit.layers.aeo,
+                    auditResult.enterpriseAudit.layers.geo,
+                    auditResult.enterpriseAudit.layers.aio,
+                  ] as const
+                ).map((layer) => (
+                  <div key={layer.id} className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-[#C8A45C]">
+                        {layer.id.toUpperCase()}
+                      </span>
+                      <span
+                        className={`font-mono text-[11px] px-2 py-0.5 border ${
+                          layer.passed
+                            ? "border-[#234524] bg-[#234524]/30 text-green-300"
+                            : "border-red-900 bg-red-950/40 text-red-300"
+                        }`}
+                      >
+                        {layer.score}/100
+                      </span>
+                    </div>
+                    <h4 className="text-white font-semibold text-[14px]">{layer.name}</h4>
+                    <p className="text-[#8A8A8A] text-[12px] mt-1 leading-relaxed">{layer.summary}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-[#141414] border border-[#2A2A2A] p-5 space-y-3">
+                <h4 className="font-mono text-[12px] uppercase tracking-[0.08em] text-[#C8A45C]">
+                  SEO Telemetry — Hydration, Redirect & Canonical
+                </h4>
+                <div className="text-[13px] text-[#D1D5DB] space-y-1.5">
+                  <div>
+                    <strong className="text-white">Hydration Parity:</strong>{" "}
+                    {auditResult.enterpriseAudit.hydrationParity
+                      ? `${Math.round(auditResult.enterpriseAudit.hydrationParity.parityRatio * 100)}% (${auditResult.enterpriseAudit.hydrationParity.rawWordCount} raw / ${auditResult.enterpriseAudit.hydrationParity.renderedWordCount} rendered words)`
+                      : "Pending live SSR vs rendered DOM capture"}
+                  </div>
+                  <div>
+                    <strong className="text-white">Redirect & Canonical Hygiene:</strong>{" "}
+                    {auditResult.enterpriseAudit.redirectHygiene.hopCount} redirect hop(s),{" "}
+                    {auditResult.enterpriseAudit.redirectHygiene.selfReferencingCanonicalOk
+                      ? "1-to-1 self-referencing canonical valid"
+                      : "canonical mismatch or missing"}
+                    ,{" "}
+                    {auditResult.enterpriseAudit.redirectHygiene.usesSitemapIndex
+                      ? "segmented sitemapindex detected"
+                      : "unsegmented sitemap"}
+                  </div>
+                  <div>
+                    <strong className="text-white">Crawl Log Telemetry:</strong>{" "}
+                    {auditResult.enterpriseAudit.crawlLogs
+                      ? `${auditResult.enterpriseAudit.crawlLogs.totalHits} hits (waste ${auditResult.enterpriseAudit.crawlLogs.crawlWastePercent}%)`
+                      : "Upload server log lines via Enterprise API to measure crawl-to-citation ratio."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#141414] border border-[#2A2A2A] p-5 space-y-3">
+                <h4 className="font-mono text-[12px] uppercase tracking-[0.08em] text-[#C8A45C]">
+                  AEO & GEO — Capsules, Pronoun-Free RAG & Benchmark
+                </h4>
+                <div className="text-[13px] text-[#D1D5DB] space-y-1.5">
+                  <div>
+                    <strong className="text-white">40–60w Answer Capsules:</strong>{" "}
+                    {auditResult.enterpriseAudit.aeoRag.capsulesInRangeCount}/
+                    {auditResult.enterpriseAudit.aeoRag.questionHeadingCount} compliant (
+                    {Math.round(auditResult.enterpriseAudit.aeoRag.capsuleComplianceRate)}%)
+                  </div>
+                  <div>
+                    <strong className="text-white">Pronoun-Free RAG Chunking:</strong>{" "}
+                    {Math.round(auditResult.enterpriseAudit.aeoRag.pronounFreeChunkRate)}% across{" "}
+                    {auditResult.enterpriseAudit.aeoRag.ragChunkCount} chunks
+                  </div>
+                  <div>
+                    <strong className="text-white">Connected JSON-LD @graph:</strong>{" "}
+                    {auditResult.enterpriseAudit.jsonLdGraph.nodeCount} nodes,{" "}
+                    {auditResult.enterpriseAudit.jsonLdGraph.danglingIdRefs.length} dangling @id refs,{" "}
+                    {auditResult.enterpriseAudit.jsonLdGraph.hasPersonEeat
+                      ? "Person E-E-A-T verified"
+                      : "Missing Person E-E-A-T"}
+                  </div>
+                  <div>
+                    <strong className="text-white">Multi-LLM Benchmark & Freshness:</strong>{" "}
+                    {auditResult.enterpriseAudit.geoBenchmark
+                      ? `${auditResult.enterpriseAudit.geoBenchmark.referenceRatePct}% reference rate across ${auditResult.enterpriseAudit.geoBenchmark.enginesCovered.length} engines`
+                      : `Density ${auditResult.enterpriseAudit.geoFreshnessDensity.statsPerThousandWords}/1k words; freshness parity ${auditResult.enterpriseAudit.geoFreshnessDensity.freshnessParityPassed ? "PASS" : "FAIL"}`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#141414] border border-[#2A2A2A] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h4 className="font-mono text-[12px] uppercase tracking-[0.08em] text-[#C8A45C]">
+                    AIO Bot Governance — Search Retrieval vs Model Training
+                  </h4>
+                  <p className="text-[#8A8A8A] text-[12px] mt-1">
+                    {auditResult.enterpriseAudit.botGovernance.allTrainingBotsAllowed
+                      ? "Model-Training Bots Explicitly Allowed (Zero-Penalty Policy Active)"
+                      : "Warning: Some model-training bots are blocked or missing explicit Allow: / rules."}
+                  </p>
+                </div>
+                <span className="font-mono text-[11px] px-2.5 py-1 border border-[#2A2A2A] text-white">
+                  Entity Conflicts: {auditResult.enterpriseAudit.crossSourceCorroboration.entityConflictCount}
+                </span>
+              </div>
+
+              <div
+                tabIndex={0}
+                role="region"
+                aria-label="AI Bot Governance Matrix"
+                className="overflow-x-auto border border-[#2A2A2A] focus-visible:outline-2 focus-visible:outline-[#C8A45C]"
+              >
+                <table className="w-full text-left border-collapse text-[12px]">
+                  <thead className="bg-[#0A0A0A] text-[#8A8A8A] font-mono uppercase">
+                    <tr>
+                      <th scope="col" className="py-2.5 px-3 border-b border-[#2A2A2A]">Crawler</th>
+                      <th scope="col" className="py-2.5 px-3 border-b border-[#2A2A2A]">Category</th>
+                      <th scope="col" className="py-2.5 px-3 border-b border-[#2A2A2A]">Purpose</th>
+                      <th scope="col" className="py-2.5 px-3 border-b border-[#2A2A2A]">Policy</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2A2A2A] text-[#D1D5DB]">
+                    {auditResult.enterpriseAudit.botGovernance.bots.map((bot) => (
+                      <tr key={bot.bot}>
+                        <td className="py-2 px-3 font-mono text-white">{bot.bot}</td>
+                        <td className="py-2 px-3 font-mono">
+                          {bot.category === "search_retrieval"
+                            ? "Search / Citation Retrieval"
+                            : "Foundation Model Training"}
+                        </td>
+                        <td className="py-2 px-3">{bot.purpose}</td>
+                        <td className="py-2 px-3 font-mono">
+                          {bot.disallowedInRobots ? (
+                            <span className="text-red-400">BLOCKED</span>
+                          ) : bot.allowedInRobots ? (
+                            <span className="text-green-400">ALLOW /</span>
+                          ) : (
+                            <span className="text-yellow-400">IMPLICIT ALLOW</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: 7-Layer Single-Layer Pipeline */}
         {activeTab === "pipeline" && (

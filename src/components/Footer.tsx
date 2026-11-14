@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -17,10 +17,6 @@ export default function Footer() {
               <div className="flex items-center gap-2 text-[#8A8A8A] text-[13px]">
                 <MapPin size={14} className="text-[#C8A45C]" />
                 Palm Coast, Florida
-              </div>
-              <div className="flex items-center gap-2 text-[#8A8A8A] text-[13px]">
-                <Phone size={14} className="text-[#C8A45C]" />
-                (904) 555-0147
               </div>
               <div className="flex items-center gap-2 text-[#8A8A8A] text-[13px]">
                 <Mail size={14} className="text-[#C8A45C]" />

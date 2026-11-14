@@ -6,20 +6,20 @@ const BASE_URL = "https://web-ready.ag";
  * entities across Google Knowledge Graph, Perplexity Sonar, OpenAI Search, and Brave/Claude.
  */
 export const WIKIDATA_ENTITIES: Record<string, string> = {
-  artificialIntelligence: "http://www.wikidata.org/entity/Q11660",
-  searchEngineOptimization: "http://www.wikidata.org/entity/Q180711",
-  softwareAgent: "http://www.wikidata.org/entity/Q2297769",
-  knowledgeGraph: "http://www.wikidata.org/entity/Q33002955",
-  informationRetrieval: "http://www.wikidata.org/entity/Q816826",
-  florida: "http://www.wikidata.org/entity/Q812",
-  miami: "http://www.wikidata.org/entity/Q8652",
-  tampa: "http://www.wikidata.org/entity/Q49255",
-  orlando: "http://www.wikidata.org/entity/Q49233",
-  jacksonville: "http://www.wikidata.org/entity/Q49191",
-  "fort-lauderdale": "http://www.wikidata.org/entity/Q487989",
-  "st-petersburg": "http://www.wikidata.org/entity/Q49229",
-  naples: "http://www.wikidata.org/entity/Q124197",
-  sarasota: "http://www.wikidata.org/entity/Q49260",
+  artificialIntelligence: "https://www.wikidata.org/entity/Q11660",
+  searchEngineOptimization: "https://www.wikidata.org/entity/Q180711",
+  softwareAgent: "https://www.wikidata.org/entity/Q2297769",
+  knowledgeGraph: "https://www.wikidata.org/entity/Q33002955",
+  informationRetrieval: "https://www.wikidata.org/entity/Q816826",
+  florida: "https://www.wikidata.org/entity/Q812",
+  miami: "https://www.wikidata.org/entity/Q8652",
+  tampa: "https://www.wikidata.org/entity/Q49255",
+  orlando: "https://www.wikidata.org/entity/Q49233",
+  jacksonville: "https://www.wikidata.org/entity/Q49191",
+  "fort-lauderdale": "https://www.wikidata.org/entity/Q487989",
+  "st-petersburg": "https://www.wikidata.org/entity/Q49229",
+  naples: "https://www.wikidata.org/entity/Q124197",
+  sarasota: "https://www.wikidata.org/entity/Q49260",
 };
 
 export const PRIMARY_AUTHORITY_CITATIONS = [
@@ -153,11 +153,15 @@ export function buildBlogPostingJsonLd(post: {
   content?: string | null;
   author?: string | null;
   publishedAt?: Date | string | null;
+  updatedAt?: Date | string | null;
   featuredImage?: string | null;
 }) {
   const datePublished = post.publishedAt
     ? new Date(post.publishedAt).toISOString()
     : undefined;
+  const dateModified = post.updatedAt
+    ? new Date(post.updatedAt).toISOString()
+    : datePublished;
 
   return {
     "@context": "https://schema.org",
@@ -170,7 +174,8 @@ export function buildBlogPostingJsonLd(post: {
     citation: PRIMARY_AUTHORITY_CITATIONS,
     author: {
       "@type": "Person",
-      name: post.author || "WEB-READY/AG",
+      "@id": `${BASE_URL}/#person-architect`,
+      name: post.author || "Josh Chandler",
     },
     publisher: {
       "@type": "Organization",
@@ -179,11 +184,12 @@ export function buildBlogPostingJsonLd(post: {
       url: BASE_URL,
     },
     datePublished,
+    dateModified,
     image: post.featuredImage || undefined,
     url: `${BASE_URL}/blog/${post.slug}`,
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `${BASE_URL}/blog/${post.slug}`,
+      "@id": `${BASE_URL}/blog/${post.slug}#webpage`,
     },
   };
 }
@@ -253,7 +259,62 @@ export function buildWebPageJsonLd(input: {
       "@id": `${BASE_URL}/#organization`,
     },
     citation: input.citations || PRIMARY_AUTHORITY_CITATIONS,
-    dateModified: input.dateModified || new Date().toISOString().split("T")[0],
+    dateModified: input.dateModified || "2026-11-13",
+  };
+}
+
+/**
+ * Machine-verifiable E-E-A-T Person node linked into Organization (#organization) and WebPage.
+ */
+export function buildPersonJsonLd(input?: {
+  id?: string;
+  name?: string;
+  jobTitle?: string;
+  credentialName?: string;
+  sameAs?: string[];
+  origin?: string;
+}) {
+  const origin = (input?.origin || BASE_URL).replace(/\/+$/, "");
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "@id": input?.id || `${origin}/#person-architect`,
+    name: input?.name || "Josh Chandler",
+    jobTitle: input?.jobTitle || "Principal Search & AI Systems Architect",
+    worksFor: {
+      "@id": `${origin}/#organization`,
+    },
+    hasCredential: {
+      "@type": "EducationalOccupationalCredential",
+      credentialCategory:
+        input?.credentialName || "Enterprise 4-Layer Search Architecture & Schema Verification",
+    },
+    sameAs: input?.sameAs || [
+      "https://www.linkedin.com/company/web-ready-ag",
+      "https://www.wikidata.org/entity/Q180711",
+    ],
+  };
+}
+
+export function buildFaqPageJsonLd(
+  questions: Array<{ question: string; answer: string }>,
+  pageUrl: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${pageUrl.replace(/#.*$/, "")}#faq`,
+    isPartOf: {
+      "@id": `${pageUrl.replace(/#.*$/, "")}#webpage`,
+    },
+    mainEntity: questions.map((q) => ({
+      "@type": "Question",
+      name: q.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: q.answer,
+      },
+    })),
   };
 }
 

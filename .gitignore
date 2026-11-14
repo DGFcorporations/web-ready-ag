@@ -30,7 +30,8 @@ dist-ssr
 *.db
 *.sqlite
 *.sqlite3
-db/migrations/*.sql
+# Numbered SQL migrations in db/migrations/ are tracked in git
+!db/migrations/*.sql
 # TypeScript cache
 *.tsbuildinfo
 # Build outputs

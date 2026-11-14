@@ -34,7 +34,7 @@ describe("Layer 1-7 Titan Code Artifact Generator (artifact-generator)", () => {
 
     // Layer 2: @graph JSON-LD with Wikidata Q-ID + definition headline + citations
     expect(bundle.jsonLdGraph).toContain('"@graph"');
-    expect(bundle.jsonLdGraph).toContain("http://www.wikidata.org/entity/Q124197"); // Naples Q-ID
+    expect(bundle.jsonLdGraph).toContain("https://www.wikidata.org/entity/Q124197"); // Naples Q-ID
     expect(bundle.jsonLdGraph).toContain('"headline"');
     expect(bundle.jsonLdGraph).toContain('"citation"');
 

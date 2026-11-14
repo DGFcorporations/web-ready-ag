@@ -9,33 +9,34 @@
     <meta name="description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility for Florida service businesses." />
     
     <!-- Canonical -->
-    <link rel="canonical" href="https://web-ready.ag" />
+    <link rel="canonical" href="https://web-ready.ag/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://web-ready.ag/" />
-    <meta property="og:title" content="WEB-READY/AG | AI Automation" />
-    <meta property="og:description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility." />
+    <meta property="og:title" content="WEB-READY/AG | Enterprise 4-Layer Search Visibility Platform" />
+    <meta property="og:description" content="WEB-READY/AG optimizes websites across SEO, AEO, GEO, and AIO standards with verified Wikidata graphs and sub-1.8s Core Web Vitals." />
     <meta property="og:image" content="https://web-ready.ag/hero-bg.jpg" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://web-ready.ag/" />
-    <meta property="twitter:title" content="WEB-READY/AG | AI Automation" />
-    <meta property="twitter:description" content="WEB-READY/AG optimizes your website for the AI era. We build Agent-Grade structured data and Answer Engine visibility." />
+    <meta property="twitter:title" content="WEB-READY/AG | Enterprise 4-Layer Search Visibility Platform" />
+    <meta property="twitter:description" content="WEB-READY/AG optimizes websites across SEO, AEO, GEO, and AIO standards with verified Wikidata graphs and sub-1.8s Core Web Vitals." />
     <meta property="twitter:image" content="https://web-ready.ag/hero-bg.jpg" />
 
-    <!-- JSON-LD Structured Data (Organization & FAQ) -->
+    <!-- JSON-LD Connected Knowledge Graph (@id Linked) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@graph": [
         {
           "@type": "Organization",
+          "@id": "https://web-ready.ag/#organization",
           "name": "WEB-READY/AG",
           "url": "https://web-ready.ag",
           "logo": "https://web-ready.ag/hero-bg.jpg",
-          "description": "Veteran-owned AI automation agency serving Florida service businesses.",
+          "description": "Veteran-owned Enterprise Search Architecture & Agent-Grade (SEO/AEO/GEO/AIO) dominance platform.",
           "address": {
             "@type": "PostalAddress",
             "addressRegion": "FL",
@@ -43,27 +44,57 @@
           },
           "contactPoint": {
             "@type": "ContactPoint",
-            "telephone": "+1-904-555-0147",
+            "email": "info@web-ready.ag",
             "contactType": "customer service"
-          }
+          },
+          "sameAs": [
+            "https://www.wikidata.org/entity/Q180711",
+            "https://www.wikidata.org/entity/Q33002955"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://web-ready.ag/#website",
+          "url": "https://web-ready.ag",
+          "name": "WEB-READY/AG",
+          "publisher": { "@id": "https://web-ready.ag/#organization" }
+        },
+        {
+          "@type": "Person",
+          "@id": "https://web-ready.ag/#person-architect",
+          "name": "Josh Chandler",
+          "jobTitle": "Principal Search & AI Systems Architect",
+          "worksFor": { "@id": "https://web-ready.ag/#organization" },
+          "hasCredential": {
+            "@type": "EducationalOccupationalCredential",
+            "credentialCategory": "Enterprise 4-Layer Search Architecture & Schema Verification"
+          },
+          "sameAs": [
+            "https://www.linkedin.com/company/web-ready-ag",
+            "https://www.wikidata.org/entity/Q180711"
+          ]
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://web-ready.ag/#webpage",
+          "url": "https://web-ready.ag/",
+          "name": "WEB-READY/AG | Enterprise 4-Layer Search Visibility Platform",
+          "isPartOf": { "@id": "https://web-ready.ag/#website" },
+          "about": { "@id": "https://web-ready.ag/#organization" },
+          "author": { "@id": "https://web-ready.ag/#person-architect" },
+          "dateModified": "2026-11-13"
         },
         {
           "@type": "FAQPage",
+          "@id": "https://web-ready.ag/#faq",
+          "isPartOf": { "@id": "https://web-ready.ag/#webpage" },
           "mainEntity": [
             {
               "@type": "Question",
-              "name": "What is AIO (Artificial Intelligence Optimization)?",
+              "name": "What is Enterprise 4-Layer Search Visibility (SEO, AEO, GEO, AIO)?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "AIO ensures large language models (LLMs) and search engines can parse, understand, and recommend your services to users asking AI for local recommendations."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "What is AEO (Answer Engine Optimization)?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "AEO ensures your brand is the definitive answer when customers ask AI tools like ChatGPT or Perplexity questions about your industry. We build targeted FAQ schema and structured content blocks designed specifically for AI extraction."
+                "text": "Enterprise 4-Layer Search Visibility unifies technical SEO crawl telemetry and sub-1.8s Core Web Vitals, 40-to-60-word pronoun-free Answer Capsules with connected @graph JSON-LD, multi-LLM Share of Model benchmarking, and granular retrieval plus training bot governance."
               }
             }
           ]
