@@ -607,6 +607,7 @@ function isLikelyHtmlFallback(text: string): boolean {
 }
 
 const DEFAULT_PROBE_BOTS: Array<{ bot: string; ua: string }> = [
+  { bot: "Bingbot", ua: "WebReady-Audit/1.0 (compatible; bingbot/2.0; synthetic probe)" },
   { bot: "Googlebot", ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
   { bot: "OAI-SearchBot", ua: "Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)" },
   { bot: "PerplexityBot", ua: "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)" },
