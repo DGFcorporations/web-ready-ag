@@ -16,10 +16,10 @@ function normalizeContentPath(rawPath: string): string {
 
 function parseLogTimestamp(value?: string): number | null {
   if (!value) return null;
-  const apache = /^(\d{1,2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/.exec(value);
+  const apache = /^(\d{1,2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})(?: ([+-]\d{4}))?$/.exec(value);
   if (apache) {
     const parsed = Date.parse(
-      `${apache[2]} ${apache[1]}, ${apache[3]} ${apache[4]}:${apache[5]}:${apache[6]} UTC`,
+      `${apache[1]} ${apache[2]} ${apache[3]} ${apache[4]}:${apache[5]}:${apache[6]} ${apache[7] ?? "+0000"}`,
     );
     return Number.isNaN(parsed) ? null : parsed;
   }

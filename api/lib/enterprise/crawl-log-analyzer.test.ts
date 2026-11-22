@@ -2,6 +2,12 @@ import { describe, it, expect } from "vitest";
 import { analyzeCrawlLogs } from "./crawl-log-analyzer";
 
 describe("Enterprise SEO/AIO Server-Log Crawl Telemetry & Orphan Analyzer", () => {
+  it("buckets combined-log timestamps by UTC day, not server-local date", () => {
+    const logs = ["12/Nov/2026:00:30:00 +0200", "12/Nov/2026:12:00:00 +0200"]
+      .map(date => `192.0.2.1 - - [${date}] "GET /pricing HTTP/1.1" 200 10 "-" "Googlebot"`)
+      .join("\n");
+    expect(analyzeCrawlLogs(logs).logCoverageDays).toBe(2);
+  });
   it("parses Cloudflare NDJSON logs and computes retrieval vs training hits, orphans, traps, and uncrawled URLs", () => {
     const ndjson = [
       JSON.stringify({
