@@ -24,6 +24,8 @@ export type PromptStage = "awareness" | "consideration" | "decision";
 
 export type SentimentLabel = "favorable" | "neutral" | "unfavorable";
 
+export type TrainingBotPolicy = "allow" | "block";
+
 export interface RedirectHop {
   url: string;
   status: number;
@@ -54,13 +56,17 @@ export interface BotRuleEvaluation {
 export interface BotGovernanceAuditResult {
   score: number;
   passed: boolean;
+  trainingPolicy: TrainingBotPolicy;
+  trainingPolicyCompliant: boolean;
   sectionsSeparated: boolean;
   allRetrievalBotsAllowed: boolean;
   allTrainingBotsAllowed: boolean;
+  allTrainingBotsBlocked: boolean;
   blockedRetrievalBots: string[];
   blockedTrainingBots: string[];
   conflictingBots: string[];
   missingExplicitTrainingAllow: string[];
+  missingExplicitTrainingPolicy: string[];
   missingExplicitRetrievalAllow: string[];
   hasQueryParameterFence: boolean;
   missingFenceRules: string[];
@@ -70,7 +76,55 @@ export interface BotGovernanceAuditResult {
   findings: string[];
 }
 
+export interface GscBigQueryMetricInput {
+  dataDate: string;
+  urlPath: string;
+  queryText?: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  avgPosition: number;
+}
+
+export interface AiReferralMetricInput {
+  sourceHost: string;
+  landingPath: string;
+  sessionsCount: number;
+  conversionsCount: number;
+  revenueAmount: number;
+  recordedDate: string;
+}
+
+export interface FirstPartyTelemetryResult {
+  score: number;
+  passed: boolean;
+  gscBigQueryMeasured: boolean;
+  aiReferralMeasured: boolean;
+  gsc: {
+    rowCount: number;
+    totalClicks: number;
+    totalImpressions: number;
+    weightedCtrPct: number;
+    weightedAvgPosition: number | null;
+    uniqueUrls: number;
+    uniqueQueries: number;
+    latestDataDate: string | null;
+  };
+  aiReferrals: {
+    eventCount: number;
+    sessions: number;
+    conversions: number;
+    conversionRatePct: number | null;
+    revenue: number;
+    sources: string[];
+    latestRecordedDate: string | null;
+  };
+  findings: string[];
+}
+
 export interface CrawlLogEntry {
+  /** Set by the trusted log exporter, never from the request's UA alone. */
+  verifiedBot?: boolean;
   timestamp?: string;
   method?: string;
   path: string;
@@ -82,6 +136,7 @@ export interface CrawlLogEntry {
 export interface CrawlLogAnalysisResult {
   totalHits: number;
   retrievalBotHits: number;
+  verifiedRetrievalHits: number;
   trainingBotHits: number;
   humanOrOtherHits: number;
   statusCounts: {
@@ -93,11 +148,15 @@ export interface CrawlLogAnalysisResult {
   non200BotRate: number;
   botHitsByAgent: Record<string, number>;
   uncrawledHighValueUrls: string[];
+  searchCrawlEfficacyPct: number | null;
+  verifiedRetrievalStatuses: Record<string, number[]>;
   logOrphans: string[];
   crawlTrapUrls: string[];
   crawlWastePercent: number;
   crawlToCitationRatio: number | null;
   crawlToCitationStatus: "healthy" | "overcrawled_low_citation" | "under_crawled" | "unmeasured";
+  logCoverageDays: number | null;
+  passes30DayWindow: boolean;
 }
 
 export interface HydrationParityResult {
@@ -109,12 +168,16 @@ export interface HydrationParityResult {
   rawHeadings: string[];
   renderedHeadings: string[];
   missingInRawHeadings: string[];
+  missingInRenderedHeadings: string[];
+  clientOnlyInternalLinks: string[];
+  clientOnlyTables: number;
   rawSchemaTypes: string[];
   renderedSchemaTypes: string[];
   clientOnlyJsonLd: string[];
   rawCanonical: string | null;
   renderedCanonical: string | null;
   emptyRootDetected: boolean;
+  contentReplacedDuringHydration: boolean;
   findings: string[];
 }
 
@@ -187,6 +250,8 @@ export interface JsonLdGraphValidationResult {
 
 export interface GeoPromptRunInput {
   prompt: string;
+  promptSource?: string;
+  citations?: { url: string; provenance: CitationProvenance }[];
   stage: PromptStage;
   engine: LlmEngineId;
   citedBrand: boolean;
@@ -216,6 +281,10 @@ export interface GeoPromptBenchmarkResult {
   byEngine: Record<string, { runs: number; referenceRatePct: number }>;
   passes25PromptMinimum: boolean;
   passes5EngineMinimum: boolean;
+  documentedMatrixPrompts: number;
+  documentedStages: PromptStage[];
+  brandCitationCount: number;
+  earnedCitationDomains: Record<string, number>;
   passesSentimentTarget: boolean;
 }
 
@@ -295,9 +364,18 @@ export interface EnterpriseLayerSummary {
   remediations: string[];
 }
 
+export interface ExternalSearchEvidence {
+  richResults?: { reference: string; errors: number };
+  schemaOrg?: { reference: string; errors: number };
+  searchFeatures?: { reference: string; opportunities: number; owned: number };
+}
+
 export interface Enterprise4LayerReport {
+  searchEvidence: ExternalSearchEvidence | null;
+  snippetPaaOwnershipPct: number | null;
   overallScore: number;
   passed: boolean;
+  evidenceComplete: boolean;
   layers: {
     seo: EnterpriseLayerSummary;
     aeo: EnterpriseLayerSummary;
@@ -313,11 +391,16 @@ export interface Enterprise4LayerReport {
   geoFreshnessDensity: GeoPageFreshnessAndDensityResult;
   geoBenchmark: GeoPromptBenchmarkResult | null;
   crossSourceCorroboration: CrossSourceCorroborationResult;
+  firstPartyTelemetry: FirstPartyTelemetryResult;
   telemetryCoverage: {
     liveCwvMeasured: boolean;
     hydrationDiffMeasured: boolean;
     serverLogsIngested: boolean;
     geoPromptRunsCount: number;
     externalSourcesCount: number;
+    botProbesCount: number;
+    gscBigQueryRowsCount: number;
+    aiReferralEventsCount: number;
+    missingEnterpriseInputs: string[];
   };
 }

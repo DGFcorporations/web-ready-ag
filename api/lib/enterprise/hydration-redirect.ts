@@ -85,6 +85,7 @@ function extractSchemaTypesFromHtml(html: string): string[] {
 export function analyzeHydrationParity(
   rawHtml: string,
   renderedHtml: string,
+  url?: string,
 ): HydrationParityResult {
   const rawWordCount = countWords(stripNonVisibleHtml(rawHtml));
   const renderedWordCount = countWords(stripNonVisibleHtml(renderedHtml));
@@ -96,8 +97,12 @@ export function analyzeHydrationParity(
   const rawHeadings = extractHeadings(rawHtml);
   const renderedHeadings = extractHeadings(renderedHtml);
   const rawHeadingSet = new Set(rawHeadings.map((h) => h.toLowerCase()));
+  const renderedHeadingSet = new Set(renderedHeadings.map((h) => h.toLowerCase()));
   const missingInRawHeadings = renderedHeadings.filter(
     (h) => !rawHeadingSet.has(h.toLowerCase()),
+  );
+  const missingInRenderedHeadings = rawHeadings.filter(
+    (h) => !renderedHeadingSet.has(h.toLowerCase()),
   );
 
   const rawSchemaTypes = extractSchemaTypesFromHtml(rawHtml);
@@ -107,13 +112,43 @@ export function analyzeHydrationParity(
 
   const rawCanonical = extractCanonicalHref(rawHtml);
   const renderedCanonical = extractCanonicalHref(renderedHtml);
+  const base = url ?? rawCanonical ?? "https://audit.invalid/";
+  function structuralContent(html: string) {
+    const body = html.replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>|<!--[\s\S]*?-->/gi, "");
+    const links = new Set<string>();
+    for (const match of body.matchAll(/<a\b[^>]*?\shref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
+      const href = (match[1] ?? match[2] ?? match[3]).replace(/&amp;/gi, "&");
+      if (href.startsWith("#")) continue;
+      try {
+        const parsed = new URL(href, base);
+        if (parsed.origin === new URL(base).origin) links.add(parsed.pathname + parsed.search);
+      } catch { /* Not a navigable URL. */ }
+    }
+    return { links, tables: body.match(/<table\b/gi)?.length ?? 0 };
+  }
+  const before = structuralContent(rawHtml);
+  const after = structuralContent(renderedHtml);
+  const clientOnlyInternalLinks = [...after.links].filter(link => !before.links.has(link));
+  const clientOnlyTables = Math.max(0, after.tables - before.tables);
 
   const emptyRootDetected =
     /<div\b[^>]*id=["'](?:root|app|__next)["'][^>]*>\s*<\/div>/i.test(rawHtml) ||
     (rawWordCount < 25 && renderedWordCount > 60);
+  const renderedFailureShell =
+    missingInRenderedHeadings.length > 0 && missingInRawHeadings.some(heading =>
+      /^(?:error\s*)?404\b|^(?:page not found|something went wrong|application error)\b/i.test(heading));
+  const contentReplacedDuringHydration =
+    renderedFailureShell ||
+    (rawWordCount >= 60 &&
+      renderedWordCount / rawWordCount < 0.5 &&
+      missingInRenderedHeadings.length > 0);
 
   let score = 100;
   const findings: string[] = [];
+  if (clientOnlyTables || clientOnlyInternalLinks.length) {
+    score -= 10;
+    findings.push(`JavaScript adds ${clientOnlyTables} table(s) and ${clientOnlyInternalLinks.length} internal link target(s); check whether core content is absent from SSR.`);
+  }
 
   if (emptyRootDetected) {
     score -= 40;
@@ -132,13 +167,25 @@ export function analyzeHydrationParity(
       `Client-only headings absent from raw HTML: ${missingInRawHeadings.slice(0, 3).join("; ")}`,
     );
   }
+  if (missingInRenderedHeadings.length > 0) {
+    score -= Math.min(30, missingInRenderedHeadings.length * 8);
+    findings.push(
+      `Server-rendered headings removed after hydration: ${missingInRenderedHeadings.slice(0, 3).join("; ")}`,
+    );
+  }
+  if (contentReplacedDuringHydration) {
+    score -= 50;
+    findings.push(
+      "JavaScript replaced substantive server-rendered content with an error or thin client-side shell.",
+    );
+  }
   if (clientOnlyJsonLd.length > 0) {
     score -= Math.min(20, clientOnlyJsonLd.length * 7);
     findings.push(
       `JSON-LD types injected only after JS hydration: ${clientOnlyJsonLd.join(", ")}`,
     );
   }
-  if (rawCanonical && renderedCanonical && rawCanonical !== renderedCanonical) {
+  if (rawCanonical !== renderedCanonical) {
     score -= 10;
     findings.push(
       `Canonical tag mutated during hydration (${rawCanonical} -> ${renderedCanonical}).`,
@@ -150,6 +197,11 @@ export function analyzeHydrationParity(
     !emptyRootDetected &&
     parityRatio >= 0.85 &&
     missingInRawHeadings.length === 0 &&
+    missingInRenderedHeadings.length === 0 &&
+    !contentReplacedDuringHydration &&
+    rawCanonical === renderedCanonical &&
+    clientOnlyInternalLinks.length === 0 &&
+    clientOnlyTables === 0 &&
     clientOnlyJsonLd.length === 0;
 
   return {
@@ -161,12 +213,16 @@ export function analyzeHydrationParity(
     rawHeadings,
     renderedHeadings,
     missingInRawHeadings,
+    missingInRenderedHeadings,
+    clientOnlyInternalLinks,
+    clientOnlyTables,
     rawSchemaTypes,
     renderedSchemaTypes,
     clientOnlyJsonLd,
     rawCanonical,
     renderedCanonical,
     emptyRootDetected,
+    contentReplacedDuringHydration,
     findings,
   };
 }
@@ -180,6 +236,12 @@ function normalizeUrlForCanonical(rawUrl: string): string {
   } catch {
     return rawUrl.trim();
   }
+}
+
+function validSitemapDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/.test(value)) return false;
+  const date = value.slice(0, 10);
+  return Number.isFinite(Date.parse(value)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
 }
 
 export function analyzeRedirectAndCanonicalHygiene(input: {
@@ -226,7 +288,7 @@ export function analyzeRedirectAndCanonicalHygiene(input: {
       if (!lastmodMatch) {
         sitemapUrlsMissingLastmod += 1;
         sitemapLastmodValid = false;
-      } else if (!/^\d{4}-\d{2}-\d{2}/.test(lastmodMatch[1])) {
+      } else if (!validSitemapDate(lastmodMatch[1])) {
         sitemapUrlsMissingLastmod += 1;
         sitemapLastmodValid = false;
       }

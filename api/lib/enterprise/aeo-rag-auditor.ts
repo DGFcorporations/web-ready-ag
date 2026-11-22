@@ -5,7 +5,7 @@ const QUESTION_START_RE = /^(what|how|why|when|where|who|which|can|does|is|are|s
 const AMBIGUOUS_PRONOUN_START_RE =
   /^(it|they|this|that|these|those|its|their|he|she)\s+(?:is|are|was|were|has|have|had|can|could|will|would|does|do|did|means|helps|works|provides|includes|allows|uses|makes|shows|runs|offers|improves|enables|ensures|creates|reduces|signal\d+)\b/i;
 
-const BARE_THIRD_PERSON_RE = /^(it|they|he|she)\b/i;
+const BARE_THIRD_PERSON_RE = /^(it|they|he|she|this approach|that approach|this method|that method)\b/i;
 
 function stripTags(raw: string): string {
   return raw
@@ -33,14 +33,12 @@ function classifyFunnelIntent(url: string, html: string): {
     pathname = url.toLowerCase();
   }
 
-  const hasMatrix =
-    /<table\b[^>]*class=["'][^"']*(comparison|pricing|matrix|entity-infobox)/i.test(html) ||
-    /\$[0-9,]+(?:\s*\/?\s*(?:mo|month|yr|year))?/i.test(html);
+  const hasMatrix = /<table\b[^>]*>[\s\S]*?<t[dh]\b/i.test(html);
 
   if (/^\/(?:compare|vs|alternatives)(\/|$)/.test(pathname)) {
     return { intent: "decision_compare", hasMatrix };
   }
-  if (/^\/pricing(\/|$)/.test(pathname)) {
+  if (/^\/(?:pricing|prices)(\/|$)/.test(pathname)) {
     return { intent: "decision_pricing", hasMatrix };
   }
   if (/^\/(?:eligibility|qualify|requirements)(\/|$)/.test(pathname)) {
@@ -83,7 +81,7 @@ export function auditAeoRagArchitecture(url: string, html: string): AeoRagAuditR
     const nextHeadingIdx = afterHeading.search(/<h[1-6]\b/i);
     const boundedSlice = nextHeadingIdx === -1 ? afterHeading : afterHeading.slice(0, nextHeadingIdx);
     const capsuleMatch =
-      /<p\b[^>]*>([\s\S]*?)<\/p>|<div\b[^>]*class=["'][^"']*answer-capsule[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(
+      /^\s*(?:<p\b[^>]*>([\s\S]*?)<\/p>|<div\b[^>]*class=["'][^"']*answer-capsule[^"']*["'][^>]*>([\s\S]*?)<\/div>)/i.exec(
         boundedSlice,
       );
 
@@ -147,6 +145,8 @@ export function auditAeoRagArchitecture(url: string, html: string): AeoRagAuditR
 
   const funnel = classifyFunnelIntent(url, cleanHtml);
   const isDownFunnelPage = funnel.intent !== "commodity_tof_glossary";
+  const requiresStructure = ["decision_compare", "decision_pricing", "decision_eligibility"].includes(funnel.intent);
+  const structured = funnel.hasMatrix || /<[ou]l\b[^>]*>\s*<li\b/i.test(cleanHtml);
 
   let score = 0;
   const findings: string[] = [];
@@ -184,12 +184,13 @@ export function auditAeoRagArchitecture(url: string, html: string): AeoRagAuditR
   }
 
   score = Math.max(0, Math.min(100, score));
+  if (requiresStructure && !structured) findings.push("Use an HTML table or list for decision-stage facts.");
   const passed =
     questionHeadingCount >= 1 &&
     capsuleComplianceRate >= 80 &&
     hasSummaryAnchors &&
     pronounFreeChunkRate >= 85 &&
-    isDownFunnelPage;
+    isDownFunnelPage && (!requiresStructure || structured);
 
   return {
     score,

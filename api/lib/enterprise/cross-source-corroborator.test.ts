@@ -79,4 +79,39 @@ describe("Enterprise AIO Cross-Source Entity Corroborator & Consensus Velocity",
     expect(res.passed).toBe(false);
     expect(res.score).toBeLessThan(50);
   });
+
+  it("detects service and credential contradictions", () => {
+    const res = corroborateCrossSourceEntities(
+      {
+        name: "Example Clinic",
+        domain: "example.com",
+        services: ["Semaglutide", "TRT"],
+        credentials: ["Active MD license"],
+      },
+      [{
+        source: "gbp",
+        name: "Example Clinic",
+        domain: "example.com",
+        services: ["TRT"],
+        credentials: ["NPI only"],
+      }],
+      { thirdPartyCitations90d: 20, favorableSentimentPct: 90 },
+    );
+
+    expect(res.conflicts.map((conflict) => conflict.field)).toEqual([
+      "services",
+      "credentials",
+    ]);
+    expect(res.passed).toBe(false);
+  });
+
+  it("does not claim zero conflicts when no external sources were checked", () => {
+    const res = corroborateCrossSourceEntities(
+      { name: "Example Clinic", domain: "example.com" },
+      [],
+      { thirdPartyCitations90d: 20, favorableSentimentPct: 90 },
+    );
+    expect(res.passesZeroConflictTarget).toBe(false);
+    expect(res.passed).toBe(false);
+  });
 });

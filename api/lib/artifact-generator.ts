@@ -314,7 +314,7 @@ function buildLayer5InfoboxAndFanOutHtml(params: {
     `      </div>`,
     `      <div id="faq-citations" class="fanout-item">`,
     `        <h3>Why do Google, Perplexity, OpenAI, and Brave Search cite ${escapeHtml(brandName)}?</h3>`,
-    `        <p>${escapeHtml(brandName)} eliminates JavaScript hydration delays by delivering Top-of-DOM entity infoboxes, connected Wikidata @graph JSON-LD nodes, visible freshness timestamps, and primary authority citations inside initial HTML bytes. Explicit permissions for OpenAI SearchBot, PerplexityBot, Claude-SearchBot, and GPTBot guarantee reliable indexing without anti-bot WAF friction or ranking penalties.</p>`,
+    `        <p>${escapeHtml(brandName)} reduces JavaScript hydration delays by delivering Top-of-DOM entity infoboxes, connected Wikidata @graph JSON-LD nodes, visible freshness timestamps, and primary authority citations inside initial HTML bytes. Live retrieval crawlers require explicit access and HTTP verification; foundation-model training crawlers follow a separate data-governance policy.</p>`,
     `      </div>`,
     `    </section>`,
     `  </article>`,

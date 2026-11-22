@@ -83,7 +83,7 @@ export const COMPARISON_SPECS: Record<string, ComparisonSpec> = {
       },
       {
         capability: "AI Crawler Governance",
-        enterprise4Layer: "Separated Retrieval & Training bots — both explicitly allowed (Allow: /)",
+        enterprise4Layer: "Allow retrieval crawlers; configure training policy independently",
         legacyAgency: "Blanket Disallow rules blocking GPTBot & Google-Extended",
         edgeGain: "Zero AI ranking/training penalties",
       },

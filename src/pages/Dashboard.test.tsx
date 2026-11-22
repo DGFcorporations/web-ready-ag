@@ -23,10 +23,16 @@ vi.mock("@/providers/trpc", () => ({
       },
     },
     enterprise: {
+      periodReport: {
+        useQuery: (input: { domain: string }) => ({ data: input.domain === "example.org" ? {
+          search: { clicks: 4, impressions: 80 }, referrals: null,
+          models: { runs: 10, referenceRatePct: 30 },
+        } : undefined }),
+      },
       getGovernancePolicy: {
         useQuery: () => ({
           data: {
-            trainingAllowPolicy: "ALLOW_EXPLICIT_ZERO_PENALTY",
+            trainingPolicy: "CONFIGURE_INDEPENDENTLY",
             retrievalBots: [{ id: "OAI-SearchBot", category: "search_retrieval", purpose: "OpenAI", policy: "ALLOW" }],
             trainingBots: [{ id: "GPTBot", category: "model_training", purpose: "OpenAI", policy: "ALLOW" }],
             ga4AiReferralDomains: ["chatgpt.com", "perplexity.ai"],
@@ -80,7 +86,7 @@ describe("Dashboard Enterprise 4-Layer Telemetry Panels", () => {
     );
 
     expect(screen.getByText(/SEO \/ AEO \/ GEO \/ AIO Control Surface/i)).toBeTruthy();
-    expect(screen.getByText(/ALLOW_EXPLICIT_ZERO_PENALTY/i)).toBeTruthy();
+    expect(screen.getByText(/CONFIGURE_INDEPENDENTLY/i)).toBeTruthy();
     expect(screen.getByText(/Unconfigured — 0 prompt runs recorded/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /Hydration & Bots/i }));
@@ -92,6 +98,11 @@ describe("Dashboard Enterprise 4-Layer Telemetry Panels", () => {
     const logsPanel = screen.getByRole("tabpanel", { name: /Server Logs and GSC/i });
     expect(within(logsPanel).getByText(/searchdata_site_impression/i)).toBeTruthy();
     expect(within(logsPanel).getByText(/unconfigured/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Reporting domain"), { target: { value: "example.org" } });
+    fireEvent.click(screen.getByRole("button", { name: "Compare period" }));
+    expect(screen.getByText("4 clicks / 80 impressions")).toBeTruthy();
+    expect(screen.getByText("AI referrals not measured")).toBeTruthy();
+    expect(screen.getByText("30% across 10 responses")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /LLM Prompt Matrix/i }));
     const promptsPanel = screen.getByRole("tabpanel", { name: /LLM Prompt Matrix/i });

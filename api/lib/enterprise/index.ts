@@ -6,4 +6,5 @@ export * from "./aeo-rag-auditor";
 export * from "./json-ld-graph-validator";
 export * from "./geo-benchmark";
 export * from "./cross-source-corroborator";
+export * from "./first-party-telemetry";
 export * from "./evaluator";

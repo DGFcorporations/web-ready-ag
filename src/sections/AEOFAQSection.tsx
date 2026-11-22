@@ -10,7 +10,7 @@ export default function AEOFAQSection() {
       id: "faq-aio-governance",
       label: "AIO & Bot Policy",
       q: "How does AIO (Artificial Intelligence Optimization) help my business?",
-      a: "Artificial Intelligence Optimization structures website HTML, connected @id JSON-LD graphs, and explicit retrieval plus foundation-model training bot permissions so OpenAI SearchBot, PerplexityBot, Claude-SearchBot, and Googlebot verify factual service pricing and cite the business accurately with zero ranking penalties.",
+      a: "Artificial Intelligence Optimization structures website HTML, connected @id JSON-LD graphs, and separate retrieval and foundation-model training policies so OpenAI SearchBot, PerplexityBot, Claude-SearchBot, and Googlebot can retrieve factual service pricing while training access follows the organization’s data-governance choice.",
     },
     {
       id: "faq-voice-ai",

@@ -8,7 +8,7 @@ describe("Enterprise SEO/AIO Server-Log Crawl Telemetry & Orphan Analyzer", () =
         ClientRequestPath: "/",
         EdgeResponseStatus: 200,
         ClientRequestUserAgent: "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)",
-        EdgeStartTimestamp: "2026-11-12T10:00:00Z",
+        EdgeStartTimestamp: "2026-10-12T10:00:00Z",
       }),
       JSON.stringify({
         ClientRequestPath: "/services",
@@ -42,11 +42,14 @@ describe("Enterprise SEO/AIO Server-Log Crawl Telemetry & Orphan Analyzer", () =
     expect(result.statusCounts["4xx"]).toBe(1);
     expect(result.non200BotRate).toBe(25);
     expect(result.logOrphans).toContain("/legacy-orphan-page");
-    expect(result.uncrawledHighValueUrls).toEqual(["/pricing", "/compare/aeo-platforms"]);
+    expect(result.uncrawledHighValueUrls).toEqual(["/", "/services", "/pricing", "/compare/aeo-platforms"]);
+    expect(result.searchCrawlEfficacyPct).toBe(0);
     expect(result.crawlTrapUrls).toContain("/blog?filter=seo&sort=desc");
     expect(result.crawlWastePercent).toBe(25);
-    expect(result.crawlToCitationRatio).toBe(1.5);
-    expect(result.crawlToCitationStatus).toBe("healthy");
+    expect(result.crawlToCitationRatio).toBeNull();
+    expect(result.crawlToCitationStatus).toBe("unmeasured");
+    expect(result.logCoverageDays).toBe(1);
+    expect(result.passes30DayWindow).toBe(false);
   });
 
   it("parses Nginx/Apache combined logs and flags empty or malformed inputs cleanly", () => {
@@ -64,13 +67,28 @@ describe("Enterprise SEO/AIO Server-Log Crawl Telemetry & Orphan Analyzer", () =
     expect(res.totalHits).toBe(2);
     expect(res.retrievalBotHits).toBe(1);
     expect(res.humanOrOtherHits).toBe(1);
-    expect(res.uncrawledHighValueUrls).toEqual([]);
-    expect(res.crawlToCitationRatio).toBe(1);
-    expect(res.crawlToCitationStatus).toBe("overcrawled_low_citation");
+    expect(res.uncrawledHighValueUrls).toEqual(["/", "/pricing"]);
+    expect(res.crawlToCitationRatio).toBeNull();
+    expect(res.crawlToCitationStatus).toBe("unmeasured");
 
     const emptyRes = analyzeCrawlLogs("");
     expect(emptyRes.totalHits).toBe(0);
     expect(emptyRes.crawlToCitationRatio).toBeNull();
     expect(emptyRes.crawlToCitationStatus).toBe("unmeasured");
+    expect(emptyRes.passes30DayWindow).toBe(false);
+  });
+
+  it("counts verified commercial search traffic separately from self-declared agents", () => {
+    const record = { path: "/pricing", status: 200, userAgent: "Googlebot/2.1", timestamp: "2026-11-12T10:00:00Z" };
+    const options = { knownSitemapUrls: ["/pricing"], auditedPath: "/pricing", citationsCount: 2 };
+    expect(analyzeCrawlLogs([record], options).searchCrawlEfficacyPct).toBe(0);
+    const result = analyzeCrawlLogs(JSON.stringify([
+      { ...record, verifiedBot: true },
+      { ...record, userAgent: "PerplexityBot/1.0", verifiedBot: true, status: 403 },
+      { ...record, userAgent: "OAI-SearchBot/1.0", verifiedBot: true, path: "/other" },
+    ]), options);
+    expect(result.searchCrawlEfficacyPct).toBe(100);
+    expect(result.crawlToCitationRatio).toBe(1.5);
+    expect(result.verifiedRetrievalStatuses).toEqual({ Googlebot: [200], PerplexityBot: [403] });
   });
 });

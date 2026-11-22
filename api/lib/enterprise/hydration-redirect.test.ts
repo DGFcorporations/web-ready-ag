@@ -26,6 +26,28 @@ describe("Enterprise SEO Hydration Parity & Redirect/Canonical Hygiene", () => {
     expect(parity.clientOnlyJsonLd).toEqual([]);
   });
 
+  it("fails when hydration replaces useful SSR content with a Page Not Found shell", () => {
+    const raw = `<!doctype html><html><body><main><h1>Florida Semaglutide Prices</h1><h2>What does semaglutide cost?</h2><p>${"verified price evidence ".repeat(50)}</p></main></body></html>`;
+    const rendered = `<!doctype html><html><body><main><h1>Page Not Found</h1><p>The requested page does not exist.</p></main></body></html>`;
+
+    const parity = analyzeHydrationParity(raw, rendered);
+
+    expect(parity.passed).toBe(false);
+    expect(parity.contentReplacedDuringHydration).toBe(true);
+    expect(parity.missingInRenderedHeadings).toContain("Florida Semaglutide Prices");
+    expect(parity.findings.some((finding) => /replaced substantive/i.test(finding))).toBe(true);
+  });
+
+  it("does not pass a canonical removed during hydration or a JS-only core link", () => {
+    const body = "<main><h1>Pricing</h1></main>";
+    const canonical = '<link rel="canonical" href="https://example.com/pricing">';
+    expect(analyzeHydrationParity(canonical + body, body).passed).toBe(false);
+    const link = '<a href="/compare">Compare</a>';
+    const parity = analyzeHydrationParity(body, body.replace("</main>", link + "</main>"), "https://example.com");
+    expect(parity.clientOnlyInternalLinks).toEqual(["/compare"]);
+    expect(parity.passed).toBe(false);
+  });
+
   it("flags 301->301->200 multi-hop chains, mismatched canonicals, URL fragments, and missing <lastmod>", () => {
     const html = `<!doctype html><html><head><link rel="canonical" href="https://example.com/Services" /></head><body><h1>Services</h1></body></html>`;
     const badSitemap = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/services</loc></url></urlset>`;
@@ -74,5 +96,11 @@ describe("Enterprise SEO Hydration Parity & Redirect/Canonical Hygiene", () => {
     expect(hygiene.usesSitemapIndex).toBe(true);
     expect(hygiene.sitemapLastmodValid).toBe(true);
     expect(hygiene.score).toBe(100);
+    for (const invalid of ["2026-02-30", "2026-11-13-later"]) {
+      expect(analyzeRedirectAndCanonicalHygiene({
+        requestedUrl: "https://web-ready.ag/services", finalUrl: "https://web-ready.ag/services", html,
+        sitemapXml: sitemapIndex.replace("2026-11-13", invalid),
+      }).sitemapLastmodValid).toBe(false);
+    }
   });
 });

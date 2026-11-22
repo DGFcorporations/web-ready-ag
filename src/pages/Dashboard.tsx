@@ -10,6 +10,35 @@ import { Package, CreditCard, Settings, ArrowRight, Loader2, ShieldCheck, Activi
 
 type EnterpriseDashboardTab = "kpi" | "hydration" | "logs" | "prompts";
 
+function PeriodReport() {
+  const [period, setPeriod] = useState(() => ({
+    domain: "", start: new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10),
+    end: new Date().toISOString().slice(0, 10),
+  }));
+  const { data, isFetching, error } = trpc.enterprise.periodReport.useQuery(period, { enabled: !!period.domain, retry: false });
+  return <section aria-label="Domain period report" className="space-y-3 border-t border-[#2A2A2A] pt-3">
+    <h3 className="font-semibold text-white">Compare search, AI revenue, and citations</h3>
+    <form className="flex flex-wrap items-end gap-3" onSubmit={event => {
+      event.preventDefault();
+      const fields = new FormData(event.currentTarget);
+      setPeriod({ domain: String(fields.get("domain")).trim(), start: String(fields.get("start")), end: String(fields.get("end")) });
+    }}>
+      <label>Reporting domain<input className="block bg-[#141414] border p-1" name="domain" required maxLength={255} placeholder="example.org" /></label>
+      <label>From<input className="block bg-[#141414] border p-1" type="date" name="start" defaultValue={period.start} required /></label>
+      <label>Through<input className="block bg-[#141414] border p-1" type="date" name="end" defaultValue={period.end} required /></label>
+      <button type="submit" className="border px-3 py-1">Compare period</button>
+    </form>
+    {error && <p role="alert">{error.message}</p>}
+    {isFetching && <p role="status">Loading period…</p>}
+    {data && <dl className="grid gap-3 sm:grid-cols-3">
+      <div><dt>GSC URL impressions</dt><dd>{data.search ? `${data.search.clicks} clicks / ${data.search.impressions} impressions` : "Search not measured"}</dd></div>
+      <div><dt>GA4 AI referrals</dt><dd>{data.referrals ? `${data.referrals.sessions} sessions / ${data.referrals.conversions} conversions / ${data.referrals.revenue.toFixed(2)} revenue (property currency)` : "AI referrals not measured"}</dd></div>
+      <div><dt>Documented Reference Rate</dt><dd>{data.models ? `${data.models.referenceRatePct}% across ${data.models.runs} responses` : "Citations not measured"}</dd></div>
+    </dl>}
+    <p>Same domain and reporting period; not a user-level attribution join.</p>
+  </section>;
+}
+
 export default function Dashboard() {
   const { user, isLoading: authLoading } = useAuth();
   const [enterpriseTab, setEnterpriseTab] = useState<EnterpriseDashboardTab>("kpi");
@@ -82,11 +111,11 @@ export default function Dashboard() {
             <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
               <div className="text-[11px] font-mono uppercase text-[#8A8A8A]">Training Bot Policy</div>
               <div className="text-white font-semibold mt-1">
-                {governancePolicy?.trainingAllowPolicy ?? "ALLOW_EXPLICIT_ZERO_PENALTY"}
+                {governancePolicy?.trainingPolicy ?? "CONFIGURE_INDEPENDENTLY"}
               </div>
               <p className="text-[#A3A3A3] text-[12px] mt-2">
                 {governancePolicy
-                  ? `${governancePolicy.retrievalBots.length} retrieval bots + ${governancePolicy.trainingBots.length} training bots explicitly allowed.`
+                  ? `${governancePolicy.retrievalBots.length} retrieval bots allowed; ${governancePolicy.trainingBots.length} training bots governed independently.`
                   : "Separated search retrieval and model training crawlers configured."}
               </p>
             </div>
@@ -130,7 +159,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="bg-[#0A0A0A] border border-[#2A2A2A] p-4">
-                <div className="text-white font-semibold mb-2">Model Training Bots (Explicit Allow: /)</div>
+                <div className="text-white font-semibold mb-2">Model Training Bots (Independent Policy)</div>
                 <p className="text-[#A3A3A3] font-mono text-[12px]">
                   {governancePolicy?.trainingBots.map((b) => b.id).join(", ") || "GPTBot, Google-Extended, CCBot, ClaudeBot"}
                 </p>
@@ -157,6 +186,7 @@ export default function Dashboard() {
                   : "Server log analyzer & GSC BigQuery pipeline status: unconfigured (awaiting NDJSON/W3C log or BigQuery export ingestion)."
                 : "Sign in as admin to inspect ingested server crawl logs and GSC BigQuery exports."}
             </p>
+            {user?.role === "admin" && <PeriodReport />}
           </div>
         )}
 
@@ -326,5 +356,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-
