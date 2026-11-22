@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeFirstPartyTelemetry } from "./first-party-telemetry";
+import { analyzeFirstPartyTelemetry } from "../api/lib/enterprise/first-party-telemetry";
 
 describe("enterprise first-party telemetry", () => {
   it("calculates GSC BigQuery and AI referral conversion KPIs", () => {

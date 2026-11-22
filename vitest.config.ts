@@ -6,7 +6,7 @@ const __dirname = import.meta.dirname;
 export default defineConfig({
   test: {
     environment: "jsdom",
-    include: ["api/**/*.test.ts", "api/**/*.spec.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"],
+    include: ["tests/**/*.test.ts", "api/**/*.test.ts", "api/**/*.spec.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"],
     exclude: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
     setupFiles: [],
   },
