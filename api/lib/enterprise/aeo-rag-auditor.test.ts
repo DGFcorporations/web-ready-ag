@@ -57,4 +57,14 @@ describe("Enterprise AEO 40-60w Answer Capsules, Pronoun-Free RAG & Down-Funnel 
     expect(res.isDownFunnelPage).toBe(false);
     expect(res.passed).toBe(false);
   });
+
+  it("does not treat a price alone as a structured matrix or skip intervening blocks", () => {
+    const html = `<h2 id="cost">How much does the service cost?</h2><aside>Terms</aside><p>${makeWords(42)}</p>
+      <p>This approach costs $25 for the first visit.</p>`;
+    const result = auditAeoRagArchitecture("https://example.org/prices/visit/", html);
+    expect(result.capsulesInRangeCount).toBe(0);
+    expect(result.hasComparisonOrPricingMatrix).toBe(false);
+    expect(result.ambiguousPronounChunks).toBe(1);
+    expect(result.funnelIntent).toBe("decision_pricing");
+  });
 });

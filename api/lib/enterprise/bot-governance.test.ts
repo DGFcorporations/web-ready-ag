@@ -81,6 +81,21 @@ Disallow: /
     expect(audit.score).toBeLessThan(80);
   });
 
+  it("accepts explicit training-bot blocking when the selected policy is block", () => {
+    const robots = buildEnterpriseRobotsTxt("https://example.com", {
+      allowTraining: false,
+    });
+    const audit = auditBotGovernance(robots, [{
+      bot: "GPTBot", status: 403, wafBlocked: true, ok: false, category: "model_training", challengeDetected: false,
+    }], { trainingPolicy: "block" });
+
+    expect(audit.passed).toBe(true);
+    expect(audit.trainingPolicy).toBe("block");
+    expect(audit.trainingPolicyCompliant).toBe(true);
+    expect(audit.allTrainingBotsBlocked).toBe(true);
+    expect(audit.allRetrievalBotsAllowed).toBe(true);
+  });
+
   it("classifies User-Agent strings accurately and catches 403 WAF bot probes", () => {
     expect(classifyBotUserAgent("Mozilla/5.0 (compatible; OAI-SearchBot/1.0)")).toEqual({
       bot: "OAI-SearchBot",

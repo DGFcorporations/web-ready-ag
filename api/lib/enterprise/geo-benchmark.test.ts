@@ -85,4 +85,21 @@ describe("Enterprise GEO Prompt Benchmarks, Statistical Density & Freshness Pari
     expect(classifyAiReferralSource("https://chatgpt.com/?utm_source=chatgpt.com")).toBe("chatgpt.com");
     expect(classifyAiReferralSource("https://www.google.com/")).toBeNull();
   });
+
+  it("counts documented prompts only across distinct engines, including uncited responses", () => {
+    const run: GeoPromptRunInput = {
+      prompt: "Which vendor?", promptSource: "Support: anonymized ticket",
+      stage: "decision", engine: "chatgpt", citedBrand: false, competitorCitations: 0,
+      provenance: "owned", sentiment: "neutral", citations: [],
+    };
+    const engines = ["chatgpt", "perplexity", "claude", "copilot", "google_aio"] as const;
+    const rows = engines.map(engine => ({ ...run, engine }));
+    const url = { url: "https://example.com/pricing", provenance: "owned" as const };
+    rows[0].citations = [url, url];
+    expect(evaluateGeoPromptBenchmark(rows)).toMatchObject({
+      documentedMatrixPrompts: 1, documentedStages: ["decision"], referenceRatePct: 20, brandCitationCount: 1,
+      provenanceBreakdown: { owned: 1, earnedThirdParty: 0, competitor: 0 },
+    });
+    expect(evaluateGeoPromptBenchmark(rows.map(r => ({ ...r, engine: "chatgpt" }))).documentedMatrixPrompts).toBe(0);
+  });
 });

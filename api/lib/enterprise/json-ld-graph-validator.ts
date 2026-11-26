@@ -13,6 +13,7 @@ const STRUCTURAL_LINK_KEYS = new Set([
   "breadcrumb",
   "hasPart",
   "about",
+  "mentions",
 ]);
 
 const INSTITUTIONAL_HOST_RE =
@@ -37,6 +38,7 @@ function collectNodesAndRefs(
   wikidataUris: Set<string>,
   scholarlyQids: Set<string>,
   duplicateContextCounter: { count: number },
+  graph: Map<string, { types: Set<string>; links: Set<string> }>,
 ): void {
   if (val === null || val === undefined) return;
   if (typeof val === "string") {
@@ -67,6 +69,7 @@ function collectNodesAndRefs(
         wikidataUris,
         scholarlyQids,
         duplicateContextCounter,
+        graph,
       );
     }
     return;
@@ -100,6 +103,16 @@ function collectNodesAndRefs(
 
   if (rawId && (rawType !== undefined || keys.length > 1)) {
     definedIds.add(rawId);
+    const node = graph.get(rawId) ?? { types: new Set<string>(), links: new Set<string>() };
+    for (const type of [rawType].flat()) if (typeof type === "string") node.types.add(type);
+    for (const key of STRUCTURAL_LINK_KEYS) {
+      for (const target of [obj[key]].flat()) {
+        const id = typeof target === "string" ? target :
+          target && typeof target === "object" && "@id" in target ? target["@id"] : undefined;
+        if (typeof id === "string") node.links.add(id);
+      }
+    }
+    graph.set(rawId, node);
   }
 
   if (typeof rawType === "string") {
@@ -127,6 +140,7 @@ function collectNodesAndRefs(
         wikidataUris,
         scholarlyQids,
         duplicateContextCounter,
+        graph,
       );
     }
   }
@@ -144,6 +158,7 @@ function collectNodesAndRefs(
       wikidataUris,
       scholarlyQids,
       duplicateContextCounter,
+      graph,
     );
   }
 }
@@ -168,6 +183,7 @@ export function validateJsonLdKnowledgeGraph(html: string): JsonLdGraphValidatio
   const wikidataUris = new Set<string>();
   const scholarlyQids = new Set<string>();
   const duplicateContextCounter = { count: 0 };
+  const graph = new Map<string, { types: Set<string>; links: Set<string> }>();
 
   let schemaOrgContextValid = false;
   let totalNodes = 0;
@@ -208,6 +224,7 @@ export function validateJsonLdKnowledgeGraph(html: string): JsonLdGraphValidatio
             wikidataUris,
             scholarlyQids,
             duplicateContextCounter,
+            graph,
           );
         }
       }
@@ -250,20 +267,32 @@ export function validateJsonLdKnowledgeGraph(html: string): JsonLdGraphValidatio
     }
   }
 
-  const hasOrg =
-    nodeTypes.has("Organization") ||
-    nodeTypes.has("LocalBusiness") ||
-    nodeTypes.has("MedicalOrganization");
-  const hasWebSite = nodeTypes.has("WebSite");
-  const hasWebPage = nodeTypes.has("WebPage");
-  const hasLeafEntity =
-    nodeTypes.has("Service") ||
-    nodeTypes.has("FAQPage") ||
-    nodeTypes.has("BlogPosting") ||
-    nodeTypes.has("Person") ||
-    nodeTypes.has("OfferCatalog");
-  const hasConnectedCoreGraph =
-    hasOrg && hasWebSite && hasWebPage && hasLeafEntity && definedIds.size >= 3 && danglingIdRefs.length === 0;
+  // A page may link directly to its publisher or through a WebSite.
+  for (const [id, node] of graph) {
+    for (const target of node.links) graph.get(target)?.links.add(id);
+  }
+  const seen = new Set<string>();
+  let hasConnectedCoreGraph = false;
+  for (const start of graph.keys()) {
+    if (seen.has(start)) continue;
+    const pending = [start];
+    const types = new Set<string>();
+    while (pending.length) {
+      const id = pending.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const node = graph.get(id);
+      if (!node) continue;
+      for (const type of node.types) types.add(type);
+      for (const target of node.links) if (!seen.has(target)) pending.push(target);
+    }
+    if (["MedicalClinic", "Organization", "LocalBusiness", "MedicalOrganization"].some(t => types.has(t)) &&
+        ["WebPage", "AboutPage", "CollectionPage"].some(t => types.has(t)) &&
+        ["Service", "Person", "BlogPosting", "FAQPage", "OfferCatalog"].some(t => types.has(t))) {
+      hasConnectedCoreGraph = true;
+      break;
+    }
+  }
 
   let hasName = false;
   let hasWorksFor = false;
@@ -286,8 +315,8 @@ export function validateJsonLdKnowledgeGraph(html: string): JsonLdGraphValidatio
     }
   }
 
-  const hasPersonEeat =
-    personNodes.length > 0 && hasName && hasWorksFor && hasCredential && institutionalSameAs.length > 0;
+  const hasPersonEeat = personNodes.some(p => typeof p.name === "string" && p.name.trim() &&
+    p.worksFor && p.hasCredential && [p.sameAs].flat().some(s => institutionalSameAs.includes(s as string)));
 
   if (rawBlocks.length === 0) schemaErrors.push("No JSON-LD script blocks found.");
   for (const pe of parseErrors) schemaErrors.push(pe);

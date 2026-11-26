@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { validateJsonLdKnowledgeGraph } from "./json-ld-graph-validator";
 
 describe("Enterprise AEO/GEO Connected @id JSON-LD Knowledge Graph Validator", () => {
+  it("does not confuse co-present but disconnected nodes with a connected graph", () => {
+    const graph = ["Organization", "WebSite", "WebPage", "Person"].map(type => ({
+      "@id": `https://example.com/#${type}`, "@type": type,
+    }));
+    const html = `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph })}</script>`;
+    expect(validateJsonLdKnowledgeGraph(html).hasConnectedCoreGraph).toBe(false);
+  });
   it("validates a connected @graph with Organization -> WebSite -> WebPage -> Service/FAQPage/Person, normalized Wikidata URIs, and zero dangling @id refs", () => {
     const html = `<!doctype html><html><head>
       <script type="application/ld+json">

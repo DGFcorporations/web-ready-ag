@@ -251,6 +251,8 @@ export const llmPromptRuns = mysqlTable("llm_prompt_runs", {
   id: serial("id").primaryKey(),
   domain: varchar("domain", { length: 255 }).notNull(),
   promptText: varchar("prompt_text", { length: 500 }).notNull(),
+  promptSource: varchar("prompt_source", { length: 500 }),
+  citations: json("citations").$type<Array<{ url: string; provenance: "owned" | "earned_third_party" | "competitor" }>>(),
   stage: varchar("stage", { length: 32 }).notNull(),
   engine: varchar("engine", { length: 32 }).notNull(),
   citedBrand: boolean("cited_brand").notNull().default(false),

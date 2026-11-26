@@ -207,6 +207,8 @@ export function evaluateGeoPromptBenchmark(
 ): GeoPromptBenchmarkResult {
   const uniquePrompts = new Set<string>();
   const enginesSet = new Set<LlmEngineId>();
+  const documentedPrompts = new Map<string, Map<PromptStage, Set<LlmEngineId>>>();
+  const earnedDomains = new Map<string, number>();
 
   let citedRuns = 0;
   let totalBrandCitations = 0;
@@ -234,29 +236,47 @@ export function evaluateGeoPromptBenchmark(
   const engineTotals: Record<string, { total: number; cited: number }> = {};
 
   for (const run of runs) {
-    uniquePrompts.add(run.prompt.trim().toLowerCase());
+    const prompt = run.prompt.trim().toLowerCase();
+    uniquePrompts.add(prompt);
     enginesSet.add(run.engine);
-
-    if (run.citedBrand) {
-      citedRuns += 1;
-      totalBrandCitations += 1;
+    if (prompt && run.promptSource?.trim() && run.citations !== undefined) {
+      const stages = documentedPrompts.get(prompt) ?? new Map<PromptStage, Set<LlmEngineId>>();
+      const covered = stages.get(run.stage) ?? new Set<LlmEngineId>();
+      covered.add(run.engine);
+      stages.set(run.stage, covered);
+      documentedPrompts.set(prompt, stages);
     }
-    totalCompetitorCitations += Math.max(0, run.competitorCitations);
 
-    if (run.provenance === "owned") provenanceBreakdown.owned += 1;
-    else if (run.provenance === "earned_third_party") provenanceBreakdown.earnedThirdParty += 1;
-    else if (run.provenance === "competitor") provenanceBreakdown.competitor += 1;
+    const citations = run.citations === undefined ? null :
+      [...new Map(run.citations.map(c => [c.url, c])).values()];
+    const brandCount = citations === null ? Number(run.citedBrand) :
+      citations.filter(c => c.provenance !== "competitor").length;
+    const cited = brandCount > 0;
+    const earnedHosts = new Set((citations ?? [])
+      .filter(c => c.provenance === "earned_third_party" && URL.canParse(c.url))
+      .map(c => new URL(c.url).hostname.toLowerCase().replace(/^www\./, "")));
+    for (const host of earnedHosts) earnedDomains.set(host, (earnedDomains.get(host) ?? 0) + 1);
+    if (cited) citedRuns += 1;
+    totalBrandCitations += brandCount;
+    totalCompetitorCitations += citations === null ? Math.max(0, run.competitorCitations) :
+      citations.filter(c => c.provenance === "competitor").length;
+
+    for (const { provenance } of citations ?? [run]) {
+      if (provenance === "owned") provenanceBreakdown.owned += 1;
+      else if (provenance === "earned_third_party") provenanceBreakdown.earnedThirdParty += 1;
+      else if (provenance === "competitor") provenanceBreakdown.competitor += 1;
+    }
 
     if (run.sentiment === "favorable") sentimentBreakdown.favorable += 1;
     else if (run.sentiment === "neutral") sentimentBreakdown.neutral += 1;
     else if (run.sentiment === "unfavorable") sentimentBreakdown.unfavorable += 1;
 
     stageTotals[run.stage].total += 1;
-    if (run.citedBrand) stageTotals[run.stage].cited += 1;
+    if (cited) stageTotals[run.stage].cited += 1;
 
     if (!engineTotals[run.engine]) engineTotals[run.engine] = { total: 0, cited: 0 };
     engineTotals[run.engine].total += 1;
-    if (run.citedBrand) engineTotals[run.engine].cited += 1;
+    if (cited) engineTotals[run.engine].cited += 1;
   }
 
   const totalRuns = runs.length;
@@ -308,6 +328,9 @@ export function evaluateGeoPromptBenchmark(
 
   const enginesCovered = Array.from(enginesSet);
   const uniquePromptsCount = uniquePrompts.size;
+  const completePrompts = [...documentedPrompts.values()].map(stages =>
+    [...stages].filter(([, engines]) => engines.size >= 5).map(([stage]) => stage)
+  ).filter(stages => stages.length > 0);
 
   return {
     totalRuns,
@@ -321,6 +344,10 @@ export function evaluateGeoPromptBenchmark(
     byEngine,
     passes25PromptMinimum: uniquePromptsCount >= 25,
     passes5EngineMinimum: enginesCovered.length >= 5,
+    documentedMatrixPrompts: completePrompts.length,
+    documentedStages: [...new Set(completePrompts.flat())],
+    brandCitationCount: totalBrandCitations,
+    earnedCitationDomains: Object.fromEntries([...earnedDomains].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))),
     passesSentimentTarget: totalRuns > 0 && sentimentBreakdown.favorablePct >= 90,
   };
 }

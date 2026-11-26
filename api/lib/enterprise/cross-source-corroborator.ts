@@ -44,6 +44,11 @@ function normalizeText(val: string): string {
   return val.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function missingSetValues(expected: string[] = [], observed: string[] = []): string[] {
+  const normalizedObserved = new Set(observed.map(normalizeText));
+  return expected.filter((value) => !normalizedObserved.has(normalizeText(value)));
+}
+
 export function corroborateCrossSourceEntities(
   canonical: CanonicalEntityProfile,
   externalSources: ExternalEntitySnapshot[],
@@ -138,13 +143,40 @@ export function corroborateCrossSourceEntities(
         severity: "warning",
       });
     }
+    if (canonical.services && ext.services) {
+      const missingServices = missingSetValues(canonical.services, ext.services);
+      if (missingServices.length > 0 || missingSetValues(ext.services, canonical.services).length > 0) {
+        conflicts.push({
+          source: ext.source,
+          field: "services",
+          expected: canonical.services.join(", "),
+          actual: ext.services.join(", "),
+          severity: "warning",
+        });
+      }
+    }
+    if (canonical.credentials && ext.credentials) {
+      const missingCredentials = missingSetValues(
+        canonical.credentials,
+        ext.credentials,
+      );
+      if (missingCredentials.length > 0 || missingSetValues(ext.credentials, canonical.credentials).length > 0) {
+        conflicts.push({
+          source: ext.source,
+          field: "credentials",
+          expected: canonical.credentials.join(", "),
+          actual: ext.credentials.join(", "),
+          severity: "critical",
+        });
+      }
+    }
   }
 
   const thirdPartyCitations90d = consensusMetrics?.thirdPartyCitations90d ?? 0;
   const favorableSentimentPct = consensusMetrics?.favorableSentimentPct ?? 0;
 
   const entityConflictCount = conflicts.length;
-  const passesZeroConflictTarget = entityConflictCount === 0;
+  const passesZeroConflictTarget = externalSources.length > 0 && entityConflictCount === 0;
   const passesConsensusVelocity =
     thirdPartyCitations90d >= 20 && favorableSentimentPct >= 90;
 

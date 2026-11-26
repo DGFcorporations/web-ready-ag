@@ -14,6 +14,19 @@ function normalizeContentPath(rawPath: string): string {
   return pathOnly.length > 1 ? pathOnly.replace(/\/+$/, "") : pathOnly;
 }
 
+function parseLogTimestamp(value?: string): number | null {
+  if (!value) return null;
+  const apache = /^(\d{1,2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})(?: ([+-]\d{4}))?$/.exec(value);
+  if (apache) {
+    const parsed = Date.parse(
+      `${apache[1]} ${apache[2]} ${apache[3]} ${apache[4]}:${apache[5]}:${apache[6]} ${apache[7] ?? "+0000"}`,
+    );
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function parseCrawlLogInput(input: string | CrawlLogEntry[]): CrawlLogEntry[] {
   if (Array.isArray(input)) {
     return input.filter(
@@ -38,7 +51,8 @@ export function parseCrawlLogInput(input: string | CrawlLogEntry[]): CrawlLogEnt
             return {
               timestamp: String(obj.EdgeStartTimestamp ?? obj.timestamp ?? ""),
               method: String(obj.ClientRequestMethod ?? obj.method ?? "GET"),
-              path: String(obj.ClientRequestPath ?? obj.ClientRequestURI ?? obj.path ?? "/"),
+              path: String(obj.ClientRequestURI ?? obj.ClientRequestPath ?? obj.path ?? ""),
+              verifiedBot: obj.verifiedBot === true,
               status: Number(obj.EdgeResponseStatus ?? obj.status ?? 0),
               userAgent: String(obj.ClientRequestUserAgent ?? obj.userAgent ?? ""),
               bytes: Number(obj.EdgeResponseBytes ?? obj.bytes ?? 0),
@@ -59,7 +73,7 @@ export function parseCrawlLogInput(input: string | CrawlLogEntry[]): CrawlLogEnt
     if (clean.startsWith("{")) {
       try {
         const obj = JSON.parse(clean) as Record<string, unknown>;
-        const path = String(obj.ClientRequestPath ?? obj.ClientRequestURI ?? obj.path ?? "");
+        const path = String(obj.ClientRequestURI ?? obj.ClientRequestPath ?? obj.path ?? "");
         const status = Number(obj.EdgeResponseStatus ?? obj.status ?? 0);
         const userAgent = String(obj.ClientRequestUserAgent ?? obj.userAgent ?? "");
         if (path && status > 0) {
@@ -69,6 +83,7 @@ export function parseCrawlLogInput(input: string | CrawlLogEntry[]): CrawlLogEnt
             path,
             status,
             userAgent,
+            verifiedBot: obj.verifiedBot === true,
             bytes: Number(obj.EdgeResponseBytes ?? obj.bytes ?? 0),
           });
         }
@@ -97,6 +112,7 @@ export function analyzeCrawlLogs(
   input: string | CrawlLogEntry[],
   options?: {
     knownSitemapUrls?: string[];
+    auditedPath?: string;
     citationsCount?: number;
   },
 ): CrawlLogAnalysisResult {
@@ -113,6 +129,7 @@ export function analyzeCrawlLogs(
   );
 
   let retrievalBotHits = 0;
+  let verifiedRetrievalHits = 0;
   let trainingBotHits = 0;
   let humanOrOtherHits = 0;
   let botErrorHits = 0;
@@ -129,8 +146,12 @@ export function analyzeCrawlLogs(
   const orphanSet = new Set<string>();
   const trapSet = new Set<string>();
   let trapHits = 0;
+  const days = new Set<number>();
+  const verifiedRetrievalStatuses: Record<string, number[]> = {};
 
   for (const entry of entries) {
+    const parsedTimestamp = parseLogTimestamp(entry.timestamp);
+    if (parsedTimestamp !== null) days.add(Math.floor(parsedTimestamp / 86400000));
     const bucket = Math.floor(entry.status / 100);
     if (bucket === 2) statusCounts["2xx"] += 1;
     else if (bucket === 3) statusCounts["3xx"] += 1;
@@ -150,12 +171,22 @@ export function analyzeCrawlLogs(
       humanOrOtherHits += 1;
     }
 
-    if (isBot && entry.status >= 400) {
+    if (isBot && entry.status !== 200) {
       botErrorHits += 1;
     }
 
     const cleanPath = normalizeContentPath(entry.path);
-    crawledCleanPaths.add(cleanPath);
+    const verified = entry.verifiedBot === true && parsedTimestamp !== null;
+    if (verified && classification.category === "search_retrieval") verifiedRetrievalHits += 1;
+    if (verified && classification.category === "search_retrieval" &&
+        !TRAP_QUERY_RE.test(entry.path) && options?.auditedPath && normalizeContentPath(options.auditedPath) === cleanPath) {
+      const statuses = verifiedRetrievalStatuses[classification.bot] ??= [];
+      if (!statuses.includes(entry.status)) statuses.push(entry.status);
+    }
+    if (verified && !TRAP_QUERY_RE.test(entry.path) && entry.status === 200 && (classification.bot === "Googlebot" || classification.bot === "Bingbot")) {
+      crawledCleanPaths.add(cleanPath);
+    }
+    if (!isBot) continue;
 
     if (TRAP_QUERY_RE.test(entry.path)) {
       trapSet.add(entry.path);
@@ -179,14 +210,24 @@ export function analyzeCrawlLogs(
   );
 
   const crawlWastePercent =
-    totalHits > 0 ? Math.round((trapHits / totalHits) * 1000) / 10 : 0;
+    totalBotHits > 0 ? Math.round((trapHits / totalBotHits) * 1000) / 10 : 0;
+  let longest = 0;
+  let consecutive = 0;
+  let previous: number | undefined;
+  for (const day of [...days].sort((a, b) => a - b)) {
+    consecutive = previous === day - 1 ? consecutive + 1 : 1;
+    longest = Math.max(longest, consecutive);
+    previous = day;
+  }
+  const logCoverageDays = longest || null;
+  const passes30DayWindow = logCoverageDays !== null && logCoverageDays >= 30;
 
   let crawlToCitationRatio: number | null = null;
   let crawlToCitationStatus: CrawlLogAnalysisResult["crawlToCitationStatus"] = "unmeasured";
-  if (typeof options?.citationsCount === "number" && retrievalBotHits > 0) {
-    crawlToCitationRatio =
-      Math.round((retrievalBotHits / Math.max(1, options.citationsCount)) * 100) / 100;
-    if (options.citationsCount === 0 || crawlToCitationRatio > 25) {
+  if (typeof options?.citationsCount === "number" && verifiedRetrievalHits > 0) {
+    crawlToCitationRatio = options.citationsCount > 0
+      ? Math.round((verifiedRetrievalHits / options.citationsCount) * 100) / 100 : null;
+    if (crawlToCitationRatio === null || crawlToCitationRatio > 25) {
       crawlToCitationStatus = "overcrawled_low_citation";
     } else if (crawlToCitationRatio < 0.25) {
       crawlToCitationStatus = "under_crawled";
@@ -198,16 +239,21 @@ export function analyzeCrawlLogs(
   return {
     totalHits,
     retrievalBotHits,
+    verifiedRetrievalHits,
     trainingBotHits,
     humanOrOtherHits,
     statusCounts,
     non200BotRate,
     botHitsByAgent,
+    verifiedRetrievalStatuses,
     uncrawledHighValueUrls,
+    searchCrawlEfficacyPct: sitemapSet.size ? Math.round(1000 * (1 - uncrawledHighValueUrls.length / sitemapSet.size)) / 10 : null,
     logOrphans: Array.from(orphanSet),
     crawlTrapUrls: Array.from(trapSet),
     crawlWastePercent,
     crawlToCitationRatio,
     crawlToCitationStatus,
+    logCoverageDays,
+    passes30DayWindow,
   };
 }

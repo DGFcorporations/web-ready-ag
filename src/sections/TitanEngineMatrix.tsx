@@ -422,6 +422,13 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
                   <div className="text-[#C8A45C] text-[28px] font-black">
                     {auditResult.enterpriseAudit.overallScore}/100
                   </div>
+                  <div className={`font-mono text-[10px] uppercase ${
+                    auditResult.enterpriseAudit.evidenceComplete ? "text-green-300" : "text-amber-300"
+                  }`}>
+                    {auditResult.enterpriseAudit.evidenceComplete
+                      ? "Evidence complete"
+                      : `${auditResult.enterpriseAudit.telemetryCoverage.missingEnterpriseInputs.length} evidence gaps`}
+                  </div>
                 </div>
               </div>
 
@@ -485,6 +492,18 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
                       ? `${auditResult.enterpriseAudit.crawlLogs.totalHits} hits (waste ${auditResult.enterpriseAudit.crawlLogs.crawlWastePercent}%)`
                       : "Upload server log lines via Enterprise API to measure crawl-to-citation ratio."}
                   </div>
+                  <div>
+                    <strong className="text-white">GSC BigQuery:</strong>{" "}
+                    {auditResult.enterpriseAudit.firstPartyTelemetry.gscBigQueryMeasured
+                      ? `${auditResult.enterpriseAudit.firstPartyTelemetry.gsc.totalClicks} clicks / ${auditResult.enterpriseAudit.firstPartyTelemetry.gsc.totalImpressions} impressions`
+                      : "Unmeasured"}
+                  </div>
+                  <div>
+                    <strong className="text-white">AI Referral Conversion Rate:</strong>{" "}
+                    {auditResult.enterpriseAudit.firstPartyTelemetry.aiReferrals.conversionRatePct != null
+                      ? `${auditResult.enterpriseAudit.firstPartyTelemetry.aiReferrals.conversionRatePct}%`
+                      : "Unmeasured"}
+                  </div>
                 </div>
               </div>
 
@@ -509,7 +528,7 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
                     {auditResult.enterpriseAudit.jsonLdGraph.nodeCount} nodes,{" "}
                     {auditResult.enterpriseAudit.jsonLdGraph.danglingIdRefs.length} dangling @id refs,{" "}
                     {auditResult.enterpriseAudit.jsonLdGraph.hasPersonEeat
-                      ? "Person E-E-A-T verified"
+                      ? "Person credential markup present"
                       : "Missing Person E-E-A-T"}
                   </div>
                   <div>
@@ -529,13 +548,15 @@ export default function TitanEngineMatrix({ compact = false }: TitanEngineMatrix
                     AIO Bot Governance — Search Retrieval vs Model Training
                   </h4>
                   <p className="text-[#8A8A8A] text-[12px] mt-1">
-                    {auditResult.enterpriseAudit.botGovernance.allTrainingBotsAllowed
-                      ? "Model-Training Bots Explicitly Allowed (Zero-Penalty Policy Active)"
-                      : "Warning: Some model-training bots are blocked or missing explicit Allow: / rules."}
+                    Training policy: {auditResult.enterpriseAudit.botGovernance.trainingPolicy}.{" "}
+                    {auditResult.enterpriseAudit.botGovernance.trainingPolicyCompliant
+                      ? "Explicit directives match the selected data-governance policy."
+                      : "Training crawler directives do not match the selected policy."}
                   </p>
                 </div>
                 <span className="font-mono text-[11px] px-2.5 py-1 border border-[#2A2A2A] text-white">
-                  Entity Conflicts: {auditResult.enterpriseAudit.crossSourceCorroboration.entityConflictCount}
+                  Entity Conflicts: {auditResult.enterpriseAudit.telemetryCoverage.externalSourcesCount > 0
+                    ? auditResult.enterpriseAudit.crossSourceCorroboration.entityConflictCount : "Unmeasured"}
                 </span>
               </div>
 

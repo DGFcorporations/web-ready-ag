@@ -53,8 +53,7 @@ describe("TitanEngineMatrix Enterprise 4-Layer Tab", () => {
     expect(screen.getByText("GPTBot")).toBeTruthy();
     expect(screen.getByText("Google-Extended")).toBeTruthy();
     expect(screen.getByText("CCBot")).toBeTruthy();
-    expect(
-      screen.getByText(/Model-Training Bots Explicitly Allowed/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/Training policy: allow/i)).toBeTruthy();
+    expect(screen.getByText(/directives match the selected data-governance policy/i)).toBeTruthy();
   });
 });

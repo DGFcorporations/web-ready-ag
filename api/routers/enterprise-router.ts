@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { and, between, count, desc, eq, gte, inArray, isNotNull, lt, sql, sum } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, adminQuery } from "../middleware";
 import { getDb } from "../queries/connection";
@@ -18,6 +18,7 @@ import {
   SEARCH_RETRIEVAL_BOTS,
   TRAINING_CRAWLER_BOTS,
   analyzeCrawlLogs,
+  parseCrawlLogInput,
   classifyAiReferralSource,
   corroborateCrossSourceEntities,
   evaluateEnterprise4Layers,
@@ -41,6 +42,11 @@ const llmEngineSchema = z.enum([
   "copilot",
 ]);
 const provenanceSchema = z.enum(["owned", "earned_third_party", "competitor"]);
+const promptEvidence = {
+  measuredAt: z.string().datetime({ offset: true }).optional(),
+  promptSource: z.string().trim().min(1).max(500).optional(),
+  citations: z.array(z.object({ url: z.string().url().max(MAX_URL_LENGTH).regex(/^https?:\/\//i), provenance: provenanceSchema })).max(100).optional(),
+};
 const sentimentSchema = z.enum(["favorable", "neutral", "unfavorable"]);
 const sourceTypeSchema = z.enum([
   "gbp",
@@ -51,11 +57,19 @@ const sourceTypeSchema = z.enum([
   "apple_business_connect",
   "aggregator",
 ]);
+const trainingBotPolicySchema = z.enum(["allow", "block"]);
+const evidenceReference = z.string().trim().min(1).max(2048);
+const validationResult = z.object({ reference: evidenceReference, errors: z.number().int().nonnegative() });
+
+function callerLogs(raw: string, role?: string) {
+  const records = parseCrawlLogInput(raw);
+  return role === "admin" ? records : records.map(record => ({ ...record, verifiedBot: false }));
+}
 
 export const enterpriseRouter = createRouter({
   getGovernancePolicy: publicQuery.query(() => {
     return {
-      trainingAllowPolicy: "ALLOW_EXPLICIT_ZERO_PENALTY" as const,
+      trainingPolicy: "CONFIGURE_INDEPENDENTLY" as const,
       retrievalBots: SEARCH_RETRIEVAL_BOTS.map((b) => ({
         id: b.id,
         category: b.category,
@@ -66,7 +80,7 @@ export const enterpriseRouter = createRouter({
         id: b.id,
         category: b.category,
         purpose: b.purpose,
-        policy: "ALLOW",
+        policy: "CONFIGURABLE",
       })),
       ga4AiReferralDomains: [...GA4_AI_REFERRAL_DOMAINS],
       gscBigQueryTables: [...GSC_BIGQUERY_EXPORT_TABLES],
@@ -98,16 +112,87 @@ export const enterpriseRouter = createRouter({
         renderedHtml: z.string().max(MAX_HTML_BYTES).optional(),
         robotsTxt: z.string().max(MAX_ROBOTS_BYTES).optional(),
         sitemapXml: z.string().max(MAX_ROBOTS_BYTES * 2).optional(),
-        knownSitemapUrls: z.array(z.string()).max(2000).optional(),
+        searchEvidence: z.object({
+          richResults: validationResult.optional(),
+          schemaOrg: validationResult.optional(),
+          searchFeatures: z.object({
+            reference: evidenceReference, opportunities: z.number().int().nonnegative(), owned: z.number().int().nonnegative(),
+          }).refine(v => v.owned <= v.opportunities).optional(),
+        }).optional(),
+        knownSitemapUrls: z.array(z.string().max(MAX_URL_LENGTH)).max(5000).optional(),
+        redirectChain: z.array(z.object({
+          url: z.string().url().max(MAX_URL_LENGTH),
+          status: z.number().int().min(100).max(599),
+          location: z.string().max(MAX_URL_LENGTH).optional(),
+        })).max(20).optional(),
         lcpMs: z.number().min(0).max(60_000).optional(),
         inpMs: z.number().min(0).max(30_000).optional(),
         cls: z.number().min(0).max(10).optional(),
         crawlLogs: z.string().max(MAX_HTML_BYTES).optional(),
+        trainingBotPolicy: trainingBotPolicySchema.optional(),
+        botProbes: z.array(z.object({
+          bot: z.string().min(1).max(120),
+          category: z.enum(["search_retrieval", "model_training", "other"]),
+          status: z.number().int().min(100).max(599).nullable(),
+          wafBlocked: z.boolean(),
+          challengeDetected: z.boolean(),
+          ok: z.boolean(),
+        })).max(50).optional(),
+        geoPromptRuns: z.array(z.object({
+          ...promptEvidence,
+          prompt: z.string().min(1).max(500),
+          stage: promptStageSchema,
+          engine: llmEngineSchema,
+          citedBrand: z.boolean(),
+          competitorCitations: z.number().int().min(0).max(100),
+          provenance: provenanceSchema,
+          sentiment: sentimentSchema,
+        })).max(2000).optional(),
+        canonicalEntity: z.object({
+          name: z.string().min(1).max(255),
+          domain: z.string().min(1).max(255),
+          phone: z.string().max(64).optional(),
+          street: z.string().max(255).optional(),
+          city: z.string().max(120).optional(),
+          state: z.string().max(60).optional(),
+          postalCode: z.string().max(32).optional(),
+          services: z.array(z.string().max(255)).max(100).optional(),
+          credentials: z.array(z.string().max(255)).max(100).optional(),
+        }).optional(),
+        externalSources: z.array(z.object({
+          source: sourceTypeSchema,
+          name: z.string().max(255).optional(),
+          domain: z.string().max(255).optional(),
+          phone: z.string().max(64).optional(),
+          street: z.string().max(255).optional(),
+          city: z.string().max(120).optional(),
+          state: z.string().max(60).optional(),
+          postalCode: z.string().max(32).optional(),
+          services: z.array(z.string().max(255)).max(100).optional(),
+          credentials: z.array(z.string().max(255)).max(100).optional(),
+        })).max(25).optional(),
+        gscBigQueryRows: z.array(z.object({
+          dataDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          urlPath: z.string().min(1).max(500),
+          queryText: z.string().max(500).optional(),
+          clicks: z.number().int().min(0),
+          impressions: z.number().int().min(0),
+          ctr: z.number().min(0).max(1),
+          avgPosition: z.number().min(0),
+        })).max(5000).optional(),
+        aiReferralEvents: z.array(z.object({
+          sourceHost: z.string().min(1).max(255),
+          landingPath: z.string().min(1).max(500),
+          sessionsCount: z.number().int().min(0),
+          conversionsCount: z.number().int().min(0),
+          revenueAmount: z.number().min(0),
+          recordedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })).max(5000).optional(),
         thirdPartyCitations90d: z.number().int().min(0).optional(),
         favorableSentimentPct: z.number().min(0).max(100).optional(),
       }),
     )
-    .mutation(({ input }) => {
+    .mutation(({ input, ctx }) => {
       return evaluateEnterprise4Layers({
         url: input.url,
         finalUrl: input.finalUrl,
@@ -115,11 +200,20 @@ export const enterpriseRouter = createRouter({
         renderedHtml: input.renderedHtml,
         robotsTxt: input.robotsTxt,
         sitemapXml: input.sitemapXml,
+        searchEvidence: input.searchEvidence,
         knownSitemapUrls: input.knownSitemapUrls,
+        redirectChain: input.redirectChain,
         lcpMs: input.lcpMs,
         inpMs: input.inpMs,
         cls: input.cls,
-        crawlLogs: input.crawlLogs,
+        crawlLogs: input.crawlLogs ? callerLogs(input.crawlLogs, ctx.user?.role) : undefined,
+        trainingBotPolicy: input.trainingBotPolicy,
+        botProbes: input.botProbes,
+        geoPromptRuns: input.geoPromptRuns,
+        canonicalEntity: input.canonicalEntity,
+        externalSources: input.externalSources,
+        gscBigQueryRows: input.gscBigQueryRows,
+        aiReferralEvents: input.aiReferralEvents,
         thirdPartyCitations90d: input.thirdPartyCitations90d,
         favorableSentimentPct: input.favorableSentimentPct,
       });
@@ -151,8 +245,8 @@ export const enterpriseRouter = createRouter({
         citationsCount: z.number().int().min(0).optional(),
       }),
     )
-    .mutation(({ input }) => {
-      return analyzeCrawlLogs(input.rawLogs, {
+    .mutation(({ input, ctx }) => {
+      return analyzeCrawlLogs(callerLogs(input.rawLogs, ctx.user?.role), {
         knownSitemapUrls: input.knownSitemapUrls,
         citationsCount: input.citationsCount,
       });
@@ -164,6 +258,7 @@ export const enterpriseRouter = createRouter({
         runs: z
           .array(
             z.object({
+              ...promptEvidence,
               prompt: z.string().min(1).max(500),
               stage: promptStageSchema,
               engine: llmEngineSchema,
@@ -178,6 +273,8 @@ export const enterpriseRouter = createRouter({
     )
     .mutation(({ input }) => {
       const normalized: GeoPromptRunInput[] = input.runs.map((r) => ({
+        promptSource: r.promptSource,
+        citations: r.citations,
         prompt: r.prompt,
         stage: r.stage as PromptStage,
         engine: r.engine as LlmEngineId,
@@ -200,6 +297,8 @@ export const enterpriseRouter = createRouter({
           city: z.string().max(120).optional(),
           state: z.string().max(60).optional(),
           postalCode: z.string().max(32).optional(),
+          services: z.array(z.string().max(255)).max(100).optional(),
+          credentials: z.array(z.string().max(255)).max(100).optional(),
         }),
         externalSources: z
           .array(
@@ -212,6 +311,8 @@ export const enterpriseRouter = createRouter({
               city: z.string().max(120).optional(),
               state: z.string().max(60).optional(),
               postalCode: z.string().max(32).optional(),
+              services: z.array(z.string().max(255)).max(100).optional(),
+              credentials: z.array(z.string().max(255)).max(100).optional(),
             }),
           )
           .max(25),
@@ -356,6 +457,7 @@ export const enterpriseRouter = createRouter({
         runs: z
           .array(
             z.object({
+              ...promptEvidence,
               prompt: z.string().min(1).max(500),
               stage: promptStageSchema,
               engine: llmEngineSchema,
@@ -376,6 +478,9 @@ export const enterpriseRouter = createRouter({
         input.runs.map((r) => ({
           domain: input.domain,
           promptText: r.prompt,
+          measuredAt: r.measuredAt ? new Date(r.measuredAt) : undefined,
+          promptSource: r.promptSource ?? null,
+          citations: r.citations ?? null,
           stage: r.stage,
           engine: r.engine,
           citedBrand: r.citedBrand,
@@ -386,6 +491,42 @@ export const enterpriseRouter = createRouter({
         })),
       );
       return evaluateGeoPromptBenchmark(input.runs);
+    }),
+
+  periodReport: adminQuery
+    .input(z.object({
+      domain: z.string().trim().min(1).max(255),
+      start: z.string().date(),
+      end: z.string().date(),
+    }).refine(v => v.start <= v.end && Date.parse(v.end) - Date.parse(v.start) < 90 * 86400000,
+      { message: "Choose a period of 1–90 days." }))
+    .query(async ({ input: { domain, start, end } }) => {
+      const db = getDb();
+      const [search, referrals, models] = await Promise.all([
+        db.select({ rows: count(), clicks: sum(gscExportRows.clicks), impressions: sum(gscExportRows.impressions) })
+          .from(gscExportRows).where(and(eq(gscExportRows.domain, domain),
+            between(gscExportRows.dataDate, start, end), isNotNull(gscExportRows.bigqueryDataset),
+            eq(gscExportRows.bigqueryTable, "searchdata_url_impression"))),
+        db.select({ rows: count(), sessions: sum(aiReferralEvents.sessionsCount),
+          conversions: sum(aiReferralEvents.conversionsCount), revenue: sum(aiReferralEvents.revenueAmount) })
+          .from(aiReferralEvents).where(and(eq(aiReferralEvents.domain, domain),
+            between(aiReferralEvents.recordedDate, start, end), inArray(aiReferralEvents.sourceHost, [...GA4_AI_REFERRAL_DOMAINS]))),
+        db.select({ runs: count(), cited: sql<number>`sum(case when
+          json_contains(${llmPromptRuns.citations}, json_object('provenance','owned'))
+          or json_contains(${llmPromptRuns.citations}, json_object('provenance','earned_third_party'))
+          then 1 else 0 end)` }).from(llmPromptRuns).where(and(eq(llmPromptRuns.domain, domain),
+            isNotNull(llmPromptRuns.citations), isNotNull(llmPromptRuns.promptSource),
+            gte(llmPromptRuns.measuredAt, new Date(start)),
+            lt(llmPromptRuns.measuredAt, new Date(Date.parse(end) + 86400000)))),
+      ]);
+      return {
+        domain, start, end,
+        search: search[0].rows ? { clicks: Number(search[0].clicks), impressions: Number(search[0].impressions) } : null,
+        referrals: referrals[0].rows ? { sessions: Number(referrals[0].sessions),
+          conversions: Number(referrals[0].conversions), revenue: Number(referrals[0].revenue) } : null,
+        models: models[0].runs ? { runs: models[0].runs,
+          referenceRatePct: Math.round(Number(models[0].cited) / models[0].runs * 1000) / 10 } : null,
+      };
     }),
 
   listTelemetrySummary: adminQuery
@@ -438,6 +579,8 @@ export const enterpriseRouter = createRouter({
           ? evaluateGeoPromptBenchmark(
               promptRows.map((p) => ({
                 prompt: p.promptText,
+                promptSource: p.promptSource ?? undefined,
+                citations: p.citations ?? undefined,
                 stage: p.stage as PromptStage,
                 engine: p.engine as LlmEngineId,
                 citedBrand: p.citedBrand,

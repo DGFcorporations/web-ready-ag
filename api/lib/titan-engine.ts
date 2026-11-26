@@ -17,8 +17,12 @@ import {
   type CrawlLogEntry,
   type Enterprise4LayerReport,
   type ExternalEntitySnapshot,
+  type ExternalSearchEvidence,
   type GeoPromptRunInput,
   type RedirectHop,
+  type TrainingBotPolicy,
+  type GscBigQueryMetricInput,
+  type AiReferralMetricInput,
 } from "./enterprise";
 
 export interface WebAgLayerSpec {
@@ -63,10 +67,12 @@ export interface TitanAuditInput {
   cspHeader?: string;
   sitemapXml?: string;
   knownSitemapUrls?: string[];
+  searchEvidence?: ExternalSearchEvidence;
   additionalPages?: Array<{ url: string; html: string }>;
   humanAuditResult?: HumanGradeAuditResult;
   redirectChain?: RedirectHop[];
   botProbes?: BotHttpProbeResult[];
+  trainingBotPolicy?: TrainingBotPolicy;
   crawlLogs?: string | CrawlLogEntry[];
   geoPromptRuns?: GeoPromptRunInput[];
   canonicalEntity?: CanonicalEntityProfile;
@@ -76,6 +82,8 @@ export interface TitanAuditInput {
   lcpMs?: number;
   inpMs?: number;
   cls?: number;
+  gscBigQueryRows?: GscBigQueryMetricInput[];
+  aiReferralEvents?: AiReferralMetricInput[];
 }
 
 export interface TitanAuditResult {
@@ -537,8 +545,10 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     robotsTxt: robots,
     sitemapXml: input.sitemapXml,
     knownSitemapUrls: input.knownSitemapUrls,
+    searchEvidence: input.searchEvidence,
     redirectChain: input.redirectChain,
     botProbes: input.botProbes,
+    trainingBotPolicy: input.trainingBotPolicy,
     crawlLogs: input.crawlLogs,
     geoPromptRuns: input.geoPromptRuns,
     canonicalEntity: input.canonicalEntity,
@@ -548,6 +558,8 @@ export function auditHtmlAgainstTitanStandard(input: TitanAuditInput): TitanAudi
     lcpMs: input.lcpMs ?? humanGradeAudit?.mobileVitals.lcpMs,
     inpMs: input.inpMs ?? humanGradeAudit?.mobileVitals.inpMs,
     cls: input.cls ?? humanGradeAudit?.mobileVitals.cls,
+    gscBigQueryRows: input.gscBigQueryRows,
+    aiReferralEvents: input.aiReferralEvents,
   });
 
   return {

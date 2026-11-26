@@ -213,8 +213,10 @@ describe("SSRF-Safe URL Guard & Live Probe Auditor (url-guard)", () => {
 
       const outcome = await probeAndAuditLiveUrl("https://web-ready.ag/", {
         fetchImpl: mockFetch,
+        probeBots: true,
       });
 
+      expect(outcome.probe.botProbes).toContainEqual(expect.objectContaining({ bot: "Bingbot", status: 200 }));
       expect(outcome.probe.reachable).toBe(true);
       expect(outcome.probe.httpStatus).toBe(200);
       expect(outcome.probe.hasLlmsTxt).toBe(true);

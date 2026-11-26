@@ -11,14 +11,19 @@ import {
   analyzeRedirectAndCanonicalHygiene,
 } from "./hydration-redirect";
 import { validateJsonLdKnowledgeGraph } from "./json-ld-graph-validator";
+import { analyzeFirstPartyTelemetry } from "./first-party-telemetry";
 import type {
+  AiReferralMetricInput,
   BotHttpProbeResult,
   CanonicalEntityProfile,
   CrawlLogEntry,
   Enterprise4LayerReport,
   ExternalEntitySnapshot,
+  ExternalSearchEvidence,
   GeoPromptRunInput,
+  GscBigQueryMetricInput,
   RedirectHop,
+  TrainingBotPolicy,
 } from "./types";
 
 export interface Enterprise4LayerEvaluationInput {
@@ -28,9 +33,11 @@ export interface Enterprise4LayerEvaluationInput {
   renderedHtml?: string;
   robotsTxt?: string;
   sitemapXml?: string;
+  searchEvidence?: ExternalSearchEvidence;
   knownSitemapUrls?: string[];
   redirectChain?: RedirectHop[];
   botProbes?: BotHttpProbeResult[];
+  trainingBotPolicy?: TrainingBotPolicy;
   crawlLogs?: string | CrawlLogEntry[];
   geoPromptRuns?: GeoPromptRunInput[];
   canonicalEntity?: CanonicalEntityProfile;
@@ -40,15 +47,19 @@ export interface Enterprise4LayerEvaluationInput {
   lcpMs?: number;
   inpMs?: number;
   cls?: number;
+  gscBigQueryRows?: GscBigQueryMetricInput[];
+  aiReferralEvents?: AiReferralMetricInput[];
   referenceNowIso?: string;
 }
 
 export function evaluateEnterprise4Layers(
   input: Enterprise4LayerEvaluationInput,
 ): Enterprise4LayerReport {
-  const botGovernance = auditBotGovernance(input.robotsTxt ?? "", input.botProbes ?? []);
+  const botGovernance = auditBotGovernance(input.robotsTxt ?? "", input.botProbes ?? [], {
+    trainingPolicy: input.trainingBotPolicy,
+  });
   const hydrationParity = input.renderedHtml
-    ? analyzeHydrationParity(input.html, input.renderedHtml)
+    ? analyzeHydrationParity(input.html, input.renderedHtml, input.finalUrl ?? input.url)
     : null;
   const redirectHygiene = analyzeRedirectAndCanonicalHygiene({
     requestedUrl: input.url,
@@ -66,10 +77,9 @@ export function evaluateEnterprise4Layers(
   const crawlLogs = input.crawlLogs
     ? analyzeCrawlLogs(input.crawlLogs, {
         knownSitemapUrls: input.knownSitemapUrls,
-        citationsCount:
-          geoBenchmark !== null
-            ? Math.round((geoBenchmark.referenceRatePct / 100) * geoBenchmark.totalRuns)
-            : undefined,
+        auditedPath: URL.canParse(input.finalUrl ?? input.url)
+          ? new URL(input.finalUrl ?? input.url).pathname : undefined,
+        citationsCount: geoBenchmark?.brandCitationCount,
       })
     : null;
 
@@ -78,6 +88,10 @@ export function evaluateEnterprise4Layers(
   const geoFreshnessDensity = auditGeoFreshnessAndDensity(input.html, {
     referenceNowIso: input.referenceNowIso,
   });
+  const firstPartyTelemetry = analyzeFirstPartyTelemetry(
+    input.gscBigQueryRows,
+    input.aiReferralEvents,
+  );
 
   const inferredHostname = (() => {
     try {
@@ -122,6 +136,12 @@ export function evaluateEnterprise4Layers(
       `Crawl logs show ${crawlLogs.logOrphans.length} orphan path(s) and ${crawlLogs.crawlWastePercent}% parameterized crawl waste.`,
     );
   }
+  if (crawlLogs && !crawlLogs.passes30DayWindow) {
+    seoRemediations.push(
+      `Server-log evidence covers ${crawlLogs.logCoverageDays ?? 0} day(s); provide a 30-90 day crawl window.`,
+    );
+  }
+  seoRemediations.push(...firstPartyTelemetry.findings);
   const seoParts = [
     redirectHygiene.score,
     hydrationParity ? hydrationParity.score : redirectHygiene.score,
@@ -163,7 +183,7 @@ export function evaluateEnterprise4Layers(
     botGovernance.score * 0.6 + crossSourceCorroboration.score * 0.4,
   );
   const aioRemediations = [...botGovernance.findings];
-  if (!crossSourceCorroboration.passesZeroConflictTarget) {
+  if (crossSourceCorroboration.entityConflictCount > 0) {
     aioRemediations.push(
       `Resolve ${crossSourceCorroboration.entityConflictCount} cross-source NAP/domain/credential conflict(s).`,
     );
@@ -177,17 +197,129 @@ export function evaluateEnterprise4Layers(
     );
   }
 
-  const overallScore = Math.round((seoScore + aeoScore + geoScore + aioScore) / 4);
+  const missingEnterpriseInputs: string[] = [];
+  const validators = [input.searchEvidence?.richResults, input.searchEvidence?.schemaOrg];
+  const validatorsMeasured = validators.every(v => v?.reference.trim() && Number.isInteger(v.errors) && v.errors >= 0);
+  if (!validatorsMeasured) missingEnterpriseInputs.push("external schema validator results");
+  if (validators.some(v => v && v.errors > 0)) aeoRemediations.push("Resolve external validator errors on the audited template.");
+  const features = input.searchEvidence?.searchFeatures;
+  const featuresMeasured = Boolean(features?.reference.trim() && Number.isInteger(features.opportunities) &&
+    Number.isInteger(features.owned) && features.owned >= 0 && features.owned <= features.opportunities);
+  if (!featuresMeasured) missingEnterpriseInputs.push("observed snippet/PAA opportunities and ownership");
+  const snippetPaaOwnershipPct = featuresMeasured && features && features.opportunities > 0
+    ? Math.round(features.owned / features.opportunities * 1000) / 10 : null;
+  const hasUrlInventory = Boolean(input.knownSitemapUrls?.length);
+  const hasChain = Boolean(input.redirectChain?.length);
+  if (!hasUrlInventory) missingEnterpriseInputs.push("commercial URL inventory for log comparison");
+  if (!hasChain) missingEnterpriseInputs.push("observed redirect chain and final status");
+  if (!input.sitemapXml?.trim()) missingEnterpriseInputs.push("sitemap XML");
+  if (!hydrationParity) missingEnterpriseInputs.push("rendered DOM");
+  if (!crawlLogs || !crawlLogs.passes30DayWindow) {
+    missingEnterpriseInputs.push("30-90 day server logs");
+  }
+  const requiredRetrievalProbes = [
+    "Googlebot",
+    "Bingbot",
+    "OAI-SearchBot",
+    "PerplexityBot",
+    "Claude-SearchBot",
+  ];
+  const probedBots = new Set((input.botProbes ?? []).filter(p => p.status != null).map(p => p.bot.toLowerCase()));
+  const probesComplete = requiredRetrievalProbes.every(bot => probedBots.has(bot.toLowerCase()));
+  const loggedRetrieval = requiredRetrievalProbes.every(bot => crawlLogs?.verifiedRetrievalStatuses[bot]?.length);
+  const logsShowSuccess = loggedRetrieval && requiredRetrievalProbes.every(bot =>
+    crawlLogs?.verifiedRetrievalStatuses[bot].every(status => status === 200));
+  if (!loggedRetrieval) missingEnterpriseInputs.push("verified retrieval bot log records on audited URL");
+  if (loggedRetrieval && !logsShowSuccess) aioRemediations.push("Verified retrieval requests on the audited URL returned non-200 statuses.");
+  const retrievalOk = requiredRetrievalProbes.every(bot => (input.botProbes ?? []).some(p =>
+    p.bot.toLowerCase() === bot.toLowerCase() && p.ok && p.status === 200 && !p.challengeDetected && !p.wafBlocked));
+  if (!probesComplete) {
+    missingEnterpriseInputs.push("live Google, Bing, OpenAI, Perplexity, and Anthropic HTTP probes");
+  }
+  if ((geoBenchmark?.documentedMatrixPrompts ?? 0) < 25) {
+    missingEnterpriseInputs.push("25+ buyer prompts across 5+ LLM engines");
+  }
+  if (geoBenchmark?.documentedStages.length !== 3) {
+    missingEnterpriseInputs.push("documented awareness, consideration, and decision prompt coverage");
+  }
+  const requiredEntitySources = [
+    "gbp",
+    "wikidata",
+    "wikipedia",
+    "crunchbase",
+    "bbb",
+    "apple_business_connect",
+  ] as const;
+  const suppliedEntitySources = new Set(
+    (input.externalSources ?? []).filter(s => s.name?.trim() || s.domain?.trim()).map(s => s.source),
+  );
+  const hasEntityChecks = requiredEntitySources.every(source => suppliedEntitySources.has(source));
+  if (!hasEntityChecks || !input.canonicalEntity) {
+    missingEnterpriseInputs.push("GBP, Wikidata, Wikipedia, Crunchbase, BBB, and Apple entity checks");
+  }
+  if (!firstPartyTelemetry.gscBigQueryMeasured) {
+    missingEnterpriseInputs.push("GSC BigQuery rows");
+  }
+  if (!firstPartyTelemetry.aiReferralMeasured) {
+    missingEnterpriseInputs.push("GA4 AI referral conversions");
+  }
+  if (
+    typeof input.lcpMs !== "number" ||
+    typeof input.inpMs !== "number" ||
+    typeof input.cls !== "number"
+  ) {
+    missingEnterpriseInputs.push("mobile LCP, INP, and CLS");
+  }
+  if (
+    input.thirdPartyCitations90d === undefined ||
+    input.favorableSentimentPct === undefined
+  ) {
+    missingEnterpriseInputs.push("90-day citation velocity and AI sentiment");
+  }
+  const evidenceComplete = missingEnterpriseInputs.length === 0;
+  const seoEvidenceComplete =
+    hydrationParity !== null &&
+    Boolean(crawlLogs?.passes30DayWindow) &&
+    probesComplete && hasChain && hasUrlInventory && Boolean(input.sitemapXml?.trim()) &&
+    firstPartyTelemetry.passed &&
+    typeof input.lcpMs === "number" &&
+    typeof input.inpMs === "number" &&
+    typeof input.cls === "number";
+  const geoEvidenceComplete = (geoBenchmark?.documentedMatrixPrompts ?? 0) >= 25 && geoBenchmark?.documentedStages.length === 3;
+  const aioEvidenceComplete =
+    probesComplete && loggedRetrieval && hasEntityChecks && Boolean(input.canonicalEntity) &&
+    input.thirdPartyCitations90d !== undefined &&
+    input.favorableSentimentPct !== undefined;
+  const seoPassed = seoScore >= 85 && seoEvidenceComplete && retrievalOk && cwvScore === 100 &&
+    hydrationParity?.passed === true && redirectHygiene.passed && !redirectHygiene.hasTemporaryCanonicalRedirect &&
+    input.redirectChain?.at(-1)?.status === 200 && crawlLogs?.uncrawledHighValueUrls.length === 0;
+  const aeoPassed = aeoScore >= 85 && jsonLdGraph.passed && aeoRag.passed &&
+    validatorsMeasured && validators.every(v => v?.errors === 0) && featuresMeasured &&
+    aeoRag.capsuleComplianceRate === 100 && aeoRag.ambiguousPronounChunks === 0;
+  const geoPassed = geoScore >= 80 && geoEvidenceComplete && geoFreshnessDensity.passed &&
+    geoBenchmark?.passesSentimentTarget === true && jsonLdGraph.hasPersonEeat;
+  const aioPassed = aioScore >= 85 && aioEvidenceComplete && retrievalOk && logsShowSuccess &&
+    botGovernance.passed && crossSourceCorroboration.passesZeroConflictTarget && crossSourceCorroboration.passesConsensusVelocity;
+  const scoredOverall = Math.round((seoScore + aeoScore + geoScore + aioScore) / 4);
+  const overallScore = evidenceComplete ? scoredOverall : Math.min(79, scoredOverall);
 
   return {
+    searchEvidence: input.searchEvidence ?? null,
+    snippetPaaOwnershipPct,
     overallScore,
-    passed: seoScore >= 85 && aeoScore >= 85 && geoScore >= 80 && aioScore >= 85,
+    passed:
+      evidenceComplete &&
+      seoPassed &&
+      aeoPassed &&
+      geoPassed &&
+      aioPassed,
+    evidenceComplete,
     layers: {
       seo: {
         id: "seo",
         name: "Layer 1: Enterprise Technical SEO & Crawl Telemetry",
         score: seoScore,
-        passed: seoScore >= 85,
+        passed: seoPassed,
         summary: `Canonical ${redirectHygiene.selfReferencingCanonicalOk ? "1:1" : "mismatch"}, ${redirectHygiene.hopCount} redirect hop(s), hydration ${hydrationParity ? `${Math.round(hydrationParity.parityRatio * 100)}%` : "unmeasured"}.`,
         remediations: seoRemediations,
       },
@@ -195,7 +327,7 @@ export function evaluateEnterprise4Layers(
         id: "aeo",
         name: "Layer 2: Answer Engine Optimization (RAG & Connected @graph)",
         score: aeoScore,
-        passed: aeoScore >= 85,
+        passed: aeoPassed,
         summary: `${aeoRag.capsulesInRangeCount}/${aeoRag.questionHeadingCount} capsules (40-60w), ${aeoRag.pronounFreeChunkRate}% pronoun-free RAG, ${jsonLdGraph.schemaErrors.length} schema error(s).`,
         remediations: aeoRemediations,
       },
@@ -203,7 +335,7 @@ export function evaluateEnterprise4Layers(
         id: "geo",
         name: "Layer 3: Generative Engine Optimization (Freshness, Stats & Share of Model)",
         score: geoScore,
-        passed: geoScore >= 80,
+        passed: geoPassed,
         summary: `Freshness parity ${geoFreshnessDensity.freshnessParityPassed ? "aligned" : "drifted"}, ${geoFreshnessDensity.statsPerThousandWords} stats/1k words${geoBenchmark ? `, Reference Rate ${geoBenchmark.referenceRatePct}%` : ""}.`,
         remediations: geoRemediations,
       },
@@ -211,7 +343,7 @@ export function evaluateEnterprise4Layers(
         id: "aio",
         name: "Layer 4: AI Infrastructure & Authority Governance (Bots & Consensus)",
         score: aioScore,
-        passed: aioScore >= 85,
+        passed: aioPassed,
         summary: `Retrieval allowed=${botGovernance.allRetrievalBotsAllowed}, Training allowed=${botGovernance.allTrainingBotsAllowed}, Entity conflicts=${crossSourceCorroboration.entityConflictCount}.`,
         remediations: aioRemediations,
       },
@@ -225,15 +357,20 @@ export function evaluateEnterprise4Layers(
     geoFreshnessDensity,
     geoBenchmark,
     crossSourceCorroboration,
+    firstPartyTelemetry,
     telemetryCoverage: {
       liveCwvMeasured:
-        typeof input.lcpMs === "number" ||
-        typeof input.inpMs === "number" ||
+        typeof input.lcpMs === "number" &&
+        typeof input.inpMs === "number" &&
         typeof input.cls === "number",
       hydrationDiffMeasured: hydrationParity !== null,
       serverLogsIngested: crawlLogs !== null && crawlLogs.totalHits > 0,
       geoPromptRunsCount: input.geoPromptRuns?.length ?? 0,
       externalSourcesCount: input.externalSources?.length ?? 0,
+      botProbesCount: input.botProbes?.length ?? 0,
+      gscBigQueryRowsCount: input.gscBigQueryRows?.length ?? 0,
+      aiReferralEventsCount: input.aiReferralEvents?.length ?? 0,
+      missingEnterpriseInputs,
     },
   };
 }
